@@ -1,11 +1,11 @@
 import pytest
 import torch
 
-from pamiq_vision_exp.models.jepa import JEPAEncoder, JEPAPredictor
+from pamiq_vision_exp.models.jepa import Encoder, Predictor
 from pamiq_vision_exp.models.utils import size_2d_to_int_tuple
 
 
-class TestJEPAEncoder:
+class TestEncoder:
     @pytest.mark.parametrize("batch_size", [1, 2])
     @pytest.mark.parametrize("img_size", [64, 96])
     @pytest.mark.parametrize("patch_size", [8])
@@ -14,8 +14,8 @@ class TestJEPAEncoder:
     def test_forward_without_mask(
         self, batch_size, img_size, patch_size, embed_dim, out_dim
     ):
-        """Test JEPAEncoder's forward pass without mask."""
-        encoder = JEPAEncoder(
+        """Test Encoder's forward pass without mask."""
+        encoder = Encoder(
             img_size=img_size,
             patch_size=patch_size,
             embed_dim=embed_dim,
@@ -35,8 +35,8 @@ class TestJEPAEncoder:
     @pytest.mark.parametrize("patch_size", [8])
     @pytest.mark.parametrize("mask_ratio", [0.25])
     def test_forward_with_mask(self, batch_size, img_size, patch_size, mask_ratio):
-        """Test JEPAEncoder's forward pass with mask."""
-        encoder = JEPAEncoder(
+        """Test Encoder's forward pass with mask."""
+        encoder = Encoder(
             img_size=img_size,
             patch_size=patch_size,
             embed_dim=64,
@@ -69,7 +69,7 @@ class TestJEPAEncoder:
     def test_invalid_image_size(self, img_size, patch_size, expected_error):
         """Test error when image size is not divisible by patch size."""
         with pytest.raises(ValueError, match=expected_error):
-            JEPAEncoder(
+            Encoder(
                 img_size=img_size,
                 patch_size=patch_size,
                 embed_dim=64,
@@ -79,7 +79,7 @@ class TestJEPAEncoder:
 
     def test_invalid_mask_shape(self):
         """Test error when mask shape doesn't match encoded image shape."""
-        encoder = JEPAEncoder(
+        encoder = Encoder(
             img_size=64,
             patch_size=8,
             embed_dim=64,
@@ -100,7 +100,7 @@ class TestJEPAEncoder:
     def test_image_patch_size_variations(self, img_size, patch_size):
         """Test that encoder handles both int and tuple for img_size and
         patch_size."""
-        encoder = JEPAEncoder(
+        encoder = Encoder(
             img_size=img_size,
             patch_size=patch_size,
             embed_dim=64,
@@ -123,7 +123,7 @@ class TestJEPAEncoder:
 
     def test_non_bool_mask(self):
         """Test error when mask tensor is not boolean."""
-        encoder = JEPAEncoder(
+        encoder = Encoder(
             img_size=64,
             patch_size=8,
             embed_dim=64,
@@ -146,14 +146,14 @@ class TestJEPAEncoder:
             encoder(images, masks)
 
 
-class TestJEPAPredictor:
+class TestPredictor:
     @pytest.mark.parametrize("batch_size", [1])
     @pytest.mark.parametrize("n_patches", [8, (8, 8)])
     @pytest.mark.parametrize("context_encoder_out_dim", [32])
     @pytest.mark.parametrize("hidden_dim", [32])
     def test_forward(self, batch_size, n_patches, context_encoder_out_dim, hidden_dim):
-        """Test JEPAPredictor's forward pass."""
-        predictor = JEPAPredictor(
+        """Test Predictor's forward pass."""
+        predictor = Predictor(
             n_patches=n_patches,
             context_encoder_out_dim=context_encoder_out_dim,
             hidden_dim=hidden_dim,
@@ -185,7 +185,7 @@ class TestJEPAPredictor:
 
     def test_invalid_target_shape(self):
         """Test error when target shape doesn't match latent shape."""
-        predictor = JEPAPredictor(
+        predictor = Predictor(
             n_patches=(8, 8),
             context_encoder_out_dim=32,
             hidden_dim=32,
@@ -200,7 +200,7 @@ class TestJEPAPredictor:
 
     def test_non_bool_target(self):
         """Test error when target tensor is not boolean."""
-        predictor = JEPAPredictor(
+        predictor = Predictor(
             n_patches=(8, 8),
             context_encoder_out_dim=32,
             hidden_dim=32,
@@ -239,7 +239,7 @@ class TestJEPAIntegration:
         n_patches = n_patches_h * n_patches_w
 
         # Initialize models with reduced complexity
-        encoder = JEPAEncoder(
+        encoder = Encoder(
             img_size=img_size,
             patch_size=patch_size,
             embed_dim=64,
@@ -248,7 +248,7 @@ class TestJEPAIntegration:
             num_heads=2,
         )
 
-        predictor = JEPAPredictor(
+        predictor = Predictor(
             n_patches=(n_patches_h, n_patches_w),
             context_encoder_out_dim=encoder_out_dim,
             hidden_dim=32,

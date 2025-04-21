@@ -15,7 +15,7 @@ from .components.transformer import Transformer
 from .utils import init_weights, size_2d, size_2d_to_int_tuple
 
 
-class JEPAEncoder(nn.Module):
+class Encoder(nn.Module):
     """Encoder for Joint Embedding Predictive Architecture (JEPA) with mask
     support."""
 
@@ -160,7 +160,7 @@ class JEPAEncoder(nn.Module):
         return super().__call__(images, masks)
 
 
-class JEPAPredictor(nn.Module):
+class Predictor(nn.Module):
     """Predictor for Joint Embedding Predictive Architecture (JEPA) with target
     support."""
 
