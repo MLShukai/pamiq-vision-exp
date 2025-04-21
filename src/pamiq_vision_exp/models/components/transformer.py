@@ -1,10 +1,13 @@
 # Ref: https://github.com/facebookresearch/ijepa
 
 import math
+from functools import partial
 from typing import override
 
 import torch
 import torch.nn as nn
+
+from ..utils import init_weights
 
 
 class MLP(nn.Module):
@@ -185,24 +188,6 @@ class TransformerLayer(nn.Module):
         return x
 
 
-def _init_weights(m: nn.Module, init_std: float) -> None:
-    """Initialize the weights with truncated normal distribution and zeros for
-    biases.
-
-    Args:
-        m: Module to initialize.
-        init_std: Standard deviation for the truncated normal initialization.
-    """
-    match m:
-        case nn.Linear():
-            nn.init.trunc_normal_(m.weight, std=init_std)
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        case nn.LayerNorm():
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
-
-
 def _fix_init_weight(layer: TransformerLayer, depth: int) -> None:
     """Rescale the weights of projection layers in transformer blocks by depth.
 
@@ -275,13 +260,13 @@ class Transformer(nn.Module):
                 dropout=dropout,
                 attn_drop=attn_drop,
             )
-            _init_weights(layer, init_std)
+            layer.apply(partial(init_weights, init_std=init_std))
             _fix_init_weight(layer, i + 1)
             self.blocks.append(layer)
 
         # Final normalization layer
         self.norm = norm_layer(embedding_dim)
-        _init_weights(self.norm, init_std)
+        init_weights(self.norm, init_std)
 
     @override
     def forward(self, x: torch.Tensor) -> torch.Tensor:
