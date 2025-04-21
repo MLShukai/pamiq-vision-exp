@@ -153,6 +153,12 @@ class JEPAEncoder(nn.Module):
         x = self.out_proj(x)
         return x
 
+    @override
+    def __call__(
+        self, images: torch.Tensor, masks: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        return super().__call__(images, masks)
+
 
 class JEPAPredictor(nn.Module):
     """Predictor for Joint Embedding Predictive Architecture (JEPA) with target
@@ -271,3 +277,7 @@ class JEPAPredictor(nn.Module):
         x = self.predictor_proj(x)
 
         return x
+
+    @override
+    def __call__(self, latents: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        return super().__call__(latents, targets)
