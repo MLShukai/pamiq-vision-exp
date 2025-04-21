@@ -27,5 +27,6 @@
     "containerEnv": {
       "PYRIGHT_PYTHON_FORCE_VERSION": "latest"
     },
+    "runArgs": ["--gpus", "all","--shm-size","8gb"],
     "shutdownAction": "stopContainer"
 }
