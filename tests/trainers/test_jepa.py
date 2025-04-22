@@ -1,7 +1,6 @@
 import pytest
 import torch
 
-from pamiq_vision_exp.models.utils import size_2d_to_int_tuple
 from pamiq_vision_exp.trainers.jepa import MultiBlockMaskCollator
 
 
