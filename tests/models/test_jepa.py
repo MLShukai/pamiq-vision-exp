@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from pamiq_vision_exp.models.jepa import Encoder, Predictor
+from pamiq_vision_exp.models.jepa import Encoder, LightWeightDecoder, Predictor
 from pamiq_vision_exp.models.utils import size_2d_to_int_tuple
 
 
@@ -222,6 +222,86 @@ class TestPredictor:
             predictor(latents, targets)
 
 
+class TestLightWeightDecoder:
+    @pytest.mark.parametrize("n_patches", [(14, 14), 14])
+    @pytest.mark.parametrize("upsample", [1, (2, 2)])
+    def test_initialization(self, n_patches, upsample):
+        """Test initialization with various parameters."""
+
+        decoder = LightWeightDecoder(
+            n_patches=n_patches,
+            patch_size=16,
+            embed_dim=768,
+            out_channels=3,
+            upsample=upsample,
+        )
+
+        #
+        n_patches_tuple = size_2d_to_int_tuple(n_patches)
+        upsample_tuple = size_2d_to_int_tuple(upsample)
+
+        assert decoder.n_patches == n_patches_tuple
+        assert decoder.upsample == upsample_tuple
+
+    def test_invalid_upsample(self):
+        """Test error when upsample factor is less than 1."""
+
+        with pytest.raises(ValueError, match="upsample must be larger than 0"):
+            LightWeightDecoder(n_patches=(14, 14), upsample=0)
+
+        with pytest.raises(ValueError, match="upsample must be larger than 0"):
+            LightWeightDecoder(n_patches=(14, 14), upsample=(0, 1))
+
+    def test_upsampled_n_patches_property(self):
+        """Test upsampled_n_patches property returns correct values."""
+
+        decoder = LightWeightDecoder(n_patches=(14, 14), upsample=2)
+        assert decoder.upsampled_n_patches == (28, 28)
+
+        decoder = LightWeightDecoder(n_patches=14, upsample=(2, 3))
+        assert decoder.upsampled_n_patches == (28, 42)
+
+    @pytest.mark.parametrize("batch_size", [1, 4])
+    @pytest.mark.parametrize("n_patches", [(8, 8)])
+    @pytest.mark.parametrize("patch_size", [16])
+    @pytest.mark.parametrize("embed_dim", [64])
+    @pytest.mark.parametrize("upsample", [1, 2])
+    def test_forward_shape(
+        self, batch_size, n_patches, patch_size, embed_dim, upsample
+    ):
+        """Test the shape of forward pass output."""
+        # 期待される出力シェイプを計算
+        n_patches_tuple = size_2d_to_int_tuple(n_patches)
+        patch_size_tuple = size_2d_to_int_tuple(patch_size)
+        upsample_tuple = size_2d_to_int_tuple(upsample)
+
+        n_patches_after_upsample = (
+            n_patches_tuple[0] * upsample_tuple[0],
+            n_patches_tuple[1] * upsample_tuple[1],
+        )
+        expected_height = n_patches_after_upsample[0] * patch_size_tuple[0]
+        expected_width = n_patches_after_upsample[1] * patch_size_tuple[1]
+
+        decoder = LightWeightDecoder(
+            n_patches=n_patches,
+            patch_size=patch_size,
+            embed_dim=embed_dim,
+            out_channels=3,
+            upsample=upsample,
+        )
+
+        # 入力テンソルを作成
+        latents = torch.randn(
+            batch_size, n_patches_tuple[0] * n_patches_tuple[1], embed_dim
+        )
+
+        # 順伝播
+        output = decoder(latents)
+
+        # 出力シェイプを確認
+        assert output.shape == (batch_size, 3, expected_height, expected_width)
+
+
 class TestJEPAIntegration:
     def test_encoder_predictor_integration(self):
         """Test that encoder and predictor work together in a typical
@@ -256,6 +336,12 @@ class TestJEPAIntegration:
             num_heads=2,
         )
 
+        decoder = LightWeightDecoder(
+            n_patches=(n_patches_h, n_patches_w),
+            patch_size=patch_size,
+            embed_dim=encoder_out_dim,
+        )
+
         # Create a smaller batch of images
         batch_size = 1
         images = torch.randn(batch_size, 3, img_size, img_size)
@@ -271,6 +357,10 @@ class TestJEPAIntegration:
         # Predict with target mask
         predictions = predictor(encoded, target_mask)
 
+        # Decode
+        decoded = decoder(encoded)
+
         # Check shapes
         assert encoded.shape == (batch_size, n_patches, encoder_out_dim)
         assert predictions.shape == (batch_size, n_patches, encoder_out_dim)
+        assert decoded.shape == (batch_size, 3, img_size, img_size)

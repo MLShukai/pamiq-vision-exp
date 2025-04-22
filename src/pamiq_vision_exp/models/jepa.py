@@ -8,7 +8,9 @@ from typing import override
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
+from .components.patch_decoder import PatchDecoder
 from .components.patch_embedding import PatchEmbedding
 from .components.positional_embeddings import get_2d_positional_embeddings
 from .components.transformer import Transformer
@@ -281,3 +283,90 @@ class Predictor(nn.Module):
     @override
     def __call__(self, latents: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         return super().__call__(latents, targets)
+
+
+class LightWeightDecoder(nn.Module):
+    """Lightweight decoder for reconstructing images from patch embeddings with
+    optional upsampling.
+
+    This module takes patch embeddings and reconstructs them into
+    images. It can optionally upsample the patch grid using transposed
+    convolution before decoding.
+    """
+
+    def __init__(
+        self,
+        n_patches: size_2d,
+        patch_size: size_2d = 16,
+        embed_dim: int = 768,
+        out_channels: int = 3,
+        init_std: float = 0.02,
+        upsample: size_2d = 1,
+    ) -> None:
+        """Initialize the lightweight decoder.
+
+        Args:
+            n_patches: Number of patches along vertical and horizontal axes.
+            patch_size: Size of each patch.
+            embed_dim: Dimension of input patch embeddings.
+            out_channels: Number of output image channels.
+            init_std: Standard deviation for weight initialization.
+            upsample: Factor by which to upsample patches before decoding.
+
+        Raises:
+            ValueError: If any dimension of upsample is less than 1.
+        """
+        super().__init__()
+        upsample = size_2d_to_int_tuple(upsample)
+        if any(up < 1 for up in upsample):
+            raise ValueError("upsample must be larger than 0.")
+        n_patches = size_2d_to_int_tuple(n_patches)
+
+        self.n_patches = n_patches
+        self.upsample = upsample
+
+        self.upsample_conv = nn.ConvTranspose2d(
+            embed_dim, embed_dim, upsample, upsample
+        )
+        self.proj = nn.Linear(embed_dim, embed_dim)
+
+        self.patch_decoder = PatchDecoder(
+            self.upsampled_n_patches, patch_size, embed_dim, out_channels
+        )
+
+        # 修正: self.upsampleではなくself.upsample_convに適用
+        for layer in [self.upsample_conv, self.proj]:
+            init_weights(layer, init_std)
+
+    @property
+    def upsampled_n_patches(self) -> tuple[int, int]:
+        """Calculate the number of patches after upsampling.
+
+        Returns:
+            A tuple containing the number of patches along vertical and horizontal axes after upsampling.
+        """
+        return self.n_patches[0] * self.upsample[0], self.n_patches[1] * self.upsample[
+            1
+        ]
+
+    @override
+    def forward(self, latents: torch.Tensor) -> torch.Tensor:
+        """Decode input latents into reconstructed image.
+
+        Args:
+            latents: Input latents with shape [batch_size, n_patches, embed_dim].
+
+        Returns:
+            Reconstructed image with shape [batch_size, out_channels, height, width].
+        """
+        x = latents.transpose(-1, -2)  # [batch, dim, patch_flatten]
+        x = x.reshape(*x.shape[:2], *self.n_patches)  # [batch, dim, patch_v, patch_h]
+        x = F.gelu(self.upsample_conv(x))  # [batch, dim, patch_v', patch_h']
+        x = x.flatten(-2).transpose(-1, -2)  # [batch, patch_flatten, dim]
+        x = F.gelu(self.proj(x))
+        x = self.patch_decoder(x)  # [batch, channels, height, width]
+        return x
+
+    @override
+    def __call__(self, latents: torch.Tensor) -> torch.Tensor:
+        return super().__call__(latents)
