@@ -1,7 +1,115 @@
+from functools import partial
+
 import pytest
 import torch
+from pamiq_core.data import DataUsersDict
+from pamiq_core.data.impls import RandomReplacementBuffer
+from pamiq_core.model import TrainingModelsDict
+from pamiq_core.torch import TorchTrainingModel
+from torch.optim import AdamW
+from torch.utils.data import DataLoader
 
-from pamiq_vision_exp.trainers.jepa import MultiBlockMaskCollator
+from pamiq_vision_exp.data import BufferNames, DataKeys
+from pamiq_vision_exp.models import ModelNames
+from pamiq_vision_exp.models.jepa import Encoder, Predictor
+from pamiq_vision_exp.trainers.jepa import JEPATrainer, MultiBlockMaskCollator
+from tests.helpers import parametrize_device
+
+
+class TestJEPATrainer:
+    IMAGE_SIZE = 64
+    PATCH_SIZE = 8
+    CHANNELS = 3
+    EMBED_DIM = 16
+    N_PATCHES = IMAGE_SIZE // PATCH_SIZE
+
+    @pytest.fixture
+    def context_encoder(self):
+        return Encoder(
+            img_size=self.IMAGE_SIZE,
+            patch_size=self.PATCH_SIZE,
+            in_channels=self.CHANNELS,
+            hidden_dim=128,
+            embed_dim=self.EMBED_DIM,
+            depth=1,
+            num_heads=2,
+        )
+
+    @pytest.fixture
+    def target_encoder(self, context_encoder: Encoder):
+        return context_encoder.clone()
+
+    @pytest.fixture
+    def predictor(self):
+        return Predictor(
+            n_patches=self.N_PATCHES,
+            embed_dim=self.EMBED_DIM,
+            hidden_dim=64,
+            depth=1,
+            num_heads=2,
+        )
+
+    @pytest.fixture
+    def models(self, context_encoder, target_encoder, predictor):
+        return {
+            ModelNames.JEPA_CONTEXT_ENCODER: context_encoder,
+            ModelNames.JEPA_TARGET_ENCODER: target_encoder,
+            ModelNames.JEPA_PREDICTOR: predictor,
+        }
+
+    @pytest.fixture
+    def data_users(self):
+        buf = RandomReplacementBuffer([DataKeys.IMAGE], max_size=16)
+        d = DataUsersDict.from_data_buffers({BufferNames.IMAGE: buf})
+        collector = d.data_collectors_dict[BufferNames.IMAGE]
+        for _ in range(10):
+            collector.collect(
+                {
+                    DataKeys.IMAGE: torch.randn(
+                        self.CHANNELS, self.IMAGE_SIZE, self.IMAGE_SIZE
+                    )
+                }
+            )
+        return d
+
+    @pytest.fixture
+    def partial_dataloader(self):
+        return partial(
+            DataLoader,
+            batch_size=2,
+            shuffle=True,
+            collate_fn=MultiBlockMaskCollator(
+                input_size=self.IMAGE_SIZE,
+                patch_size=self.PATCH_SIZE,
+            ),
+        )
+
+    @pytest.fixture
+    def partial_optimizer(self):
+        partial_optimizer = partial(AdamW, lr=1e-4, weight_decay=0.04)
+        return partial_optimizer
+
+    @parametrize_device
+    def test_run(
+        self, device, data_users, models, partial_dataloader, partial_optimizer
+    ):
+        """Test JEPA Trainer workflow."""
+        models = TrainingModelsDict(
+            {
+                name: TorchTrainingModel(m, has_inference_model=False, device=device)
+                for name, m in models.items()
+            }
+        )
+        trainer = JEPATrainer(
+            partial_dataloader,
+            partial_optimizer,
+            min_buffer_size=4,
+            min_new_data_count=2,
+        )
+        trainer.attach_data_users(data_users)
+        trainer.attach_training_models(models)
+        assert trainer.run() is True
+        assert trainer.run() is False
 
 
 class TestMultiBlockMaskCollator:

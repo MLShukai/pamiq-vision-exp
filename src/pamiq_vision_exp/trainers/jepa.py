@@ -1,12 +1,205 @@
+import itertools
 import math
 import random
+from functools import partial
 from multiprocessing import Value
+from typing import override
 
 import torch
+import torch.nn.functional as F
+from pamiq_core import DataUser
+from pamiq_core.torch import OptimizersSetup, TorchTrainer, get_device
 from torch import Tensor
-from torch.utils.data import default_collate
+from torch.optim import Optimizer
+from torch.utils.data import DataLoader, TensorDataset, default_collate
 
+from pamiq_vision_exp.data import BufferNames, DataKeys
+from pamiq_vision_exp.models import ModelNames
+from pamiq_vision_exp.models.jepa import Encoder, Predictor
 from pamiq_vision_exp.models.utils import size_2d, size_2d_to_int_tuple
+
+OPTIMIZER_NAME = "optimizer"
+
+
+class JEPATrainer(TorchTrainer):
+    """Trainer for Joint Embedding Predictive Architecture (JEPA).
+
+    This trainer implements the JEPA training process which involves:
+    1. A context encoder that encodes patches with some masked areas
+    2. A target encoder that encodes full patches (without masking)
+    3. A predictor that predicts target encoder outputs from context encoder outputs
+
+    The training uses a masked prediction task where the model learns to predict
+    representations of target patches from context patches. The target encoder
+    is updated using an exponential moving average of the context encoder parameters.
+    """
+
+    @override
+    def __init__(
+        self,
+        partial_dataloader: partial[DataLoader[Tensor]],
+        partial_optimizer: partial[Optimizer],
+        target_encoder_update_moving_average: float = 0.996,  # based on the original I-JEPA initinal setting.
+        max_epochs: int = 1,
+        data_user_name: str = BufferNames.IMAGE,
+        min_buffer_size: int = 0,
+        min_new_data_count: int = 0,
+    ) -> None:
+        """Initialize the JEPA trainer.
+
+        Args:
+            partial_dataloader: Partially configured DataLoader to be used with
+                dynamically created datasets during training.
+            partial_optimizer: Partially configured optimizer to be used with
+                the model parameters.
+            target_encoder_update_moving_average: Momentum coefficient for updating
+                the target encoder from the context encoder (higher values mean
+                slower updates, default: 0.996 based on original I-JEPA).
+            max_epochs: Maximum number of epochs to train per training session.
+            data_user_name: Name of the data user providing training data.
+            min_buffer_size: Minimum buffer size required before training starts.
+            min_new_data_count: Minimum number of new data points required for training.
+        """
+        super().__init__(data_user_name, min_buffer_size, min_new_data_count)
+
+        self.data_user_name = data_user_name
+        self.partial_optimizer = partial_optimizer
+        self.partial_dataloader = partial_dataloader
+        self.target_encoder_update_moving_average = target_encoder_update_moving_average
+        self.max_epochs = max_epochs
+
+    @override
+    def on_data_users_attached(self) -> None:
+        """Set up data user references when they are attached to the trainer.
+
+        This method is called automatically by the PAMIQ framework when
+        data users are attached to the trainer. It retrieves and stores
+        references to the required data users for convenient access
+        during training.
+        """
+        super().on_data_users_attached()
+        self.image_data_user: DataUser[Tensor] = self.get_data_user(self.data_user_name)
+
+    @override
+    def on_training_models_attached(self) -> None:
+        """Set up model references when they are attached to the trainer.
+
+        This method is called automatically by the PAMIQ framework when
+        training models are attached to the trainer. It retrieves and
+        stores references to the JEPA models (context encoder, target
+        encoder, and predictor) for convenient access during training.
+        """
+        super().on_training_models_attached()
+        self.context_encoder = self.get_torch_training_model(
+            ModelNames.JEPA_CONTEXT_ENCODER, Encoder
+        )
+        self.target_encoder = self.get_torch_training_model(
+            ModelNames.JEPA_TARGET_ENCODER, Encoder
+        )
+        self.predictor = self.get_torch_training_model(
+            ModelNames.JEPA_PREDICTOR, Predictor
+        )
+
+    @override
+    def create_optimizers(self) -> OptimizersSetup:
+        """Create optimizers for JEPA training.
+
+        Creates an optimizer that updates both the context encoder and predictor
+        parameters. The target encoder is updated separately through exponential
+        moving average and is not directly optimized.
+
+        Returns:
+            Dictionary mapping optimizer name to configured optimizer instance.
+        """
+        return {
+            OPTIMIZER_NAME: self.partial_optimizer(
+                itertools.chain(
+                    self.context_encoder.model.parameters(),
+                    self.predictor.model.parameters(),
+                )
+            )
+        }
+
+    @override
+    def train(self) -> None:
+        """Execute JEPA training process.
+
+        This method implements the core JEPA training loop:
+        1. Creates a dataset and dataloader from the collected images
+        2. For each batch:
+           - Encodes images with the target encoder (without gradients)
+           - Encodes masked images with the context encoder
+           - Uses the predictor to predict target patches from context
+           - Computes smooth L1 loss between predictions and target representations
+           - Updates context encoder and predictor parameters via backpropagation
+           - Updates target encoder parameters via exponential moving average
+
+        The target encoder serves as a momentum-updated teacher model that provides
+        stable targets for the context encoder and predictor to learn from.
+        """
+        dataset = TensorDataset(
+            torch.stack(list(self.image_data_user.get_data()[DataKeys.IMAGE]))
+        )
+        dataloader = self.partial_dataloader(dataset=dataset)
+        device = get_device(self.context_encoder.model)
+
+        for _ in range(self.max_epochs):
+            batch: tuple[Tensor, Tensor, Tensor]
+            for batch in dataloader:
+                (image_batch, masks_for_context_encoder, targets_for_predictor) = batch
+                image_batch = image_batch.to(device)
+                masks_for_context_encoder = masks_for_context_encoder.to(device)
+                targets_for_predictor = targets_for_predictor.to(device)
+
+                self.optimizers[OPTIMIZER_NAME].zero_grad()
+
+                # target encoder
+                with torch.no_grad():
+                    latent_from_target_encoder: Tensor = self.target_encoder(
+                        image_batch
+                    )
+                    # normalize over feature-dim
+                    latent_from_target_encoder = F.layer_norm(
+                        latent_from_target_encoder,
+                        (latent_from_target_encoder.size(-1),),
+                    )
+
+                # context encoder
+                latent_from_context_encoder = self.context_encoder(
+                    image_batch, masks_for_context_encoder
+                )
+
+                # predictor
+                latent_from_predictor = self.predictor(
+                    latent_from_context_encoder, targets_for_predictor
+                )
+
+                # Element wise smooth l1 loss for masking.
+                losses = F.smooth_l1_loss(
+                    latent_from_predictor, latent_from_target_encoder, reduction="none"
+                ).mean(-1)
+                # shape: [batch, n_patches]
+
+                # Ignore patches that are not selected for prediction.
+                losses = torch.masked_fill(losses, ~targets_for_predictor, 0.0)
+                loss = losses.sum() / targets_for_predictor.sum()
+
+                loss.backward()
+                self.optimizers[OPTIMIZER_NAME].step()
+
+                # target_encoder updates weights by moving average from context_encoder
+                with torch.no_grad():
+                    # In the original I-JEPA, m changes through training process.
+                    # But in ami-q, since assuming Semi-permanent training, m is set as fixed value.
+                    m = self.target_encoder_update_moving_average
+                    for target_encoder_param, context_encoder_param in zip(
+                        self.target_encoder.model.parameters(),
+                        self.context_encoder.model.parameters(),
+                        strict=True,
+                    ):
+                        target_encoder_param.data.mul_(m).add_(
+                            (1.0 - m) * context_encoder_param.detach().data
+                        )
 
 
 class MultiBlockMaskCollator:
