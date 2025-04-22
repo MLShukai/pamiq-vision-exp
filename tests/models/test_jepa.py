@@ -9,17 +9,17 @@ class TestEncoder:
     @pytest.mark.parametrize("batch_size", [1, 2])
     @pytest.mark.parametrize("img_size", [64, 96])
     @pytest.mark.parametrize("patch_size", [8])
-    @pytest.mark.parametrize("embed_dim", [64])
-    @pytest.mark.parametrize("out_dim", [32])
+    @pytest.mark.parametrize("hidden_dim", [64])
+    @pytest.mark.parametrize("embed_dim", [32])
     def test_forward_without_mask(
-        self, batch_size, img_size, patch_size, embed_dim, out_dim
+        self, batch_size, img_size, patch_size, hidden_dim, embed_dim
     ):
         """Test Encoder's forward pass without mask."""
         encoder = Encoder(
             img_size=img_size,
             patch_size=patch_size,
+            hidden_dim=hidden_dim,
             embed_dim=embed_dim,
-            out_dim=out_dim,
             depth=2,
             num_heads=2,
         )
@@ -28,7 +28,7 @@ class TestEncoder:
         encoded = encoder(images)
 
         n_patches = (img_size // patch_size) ** 2
-        assert encoded.shape == (batch_size, n_patches, out_dim)
+        assert encoded.shape == (batch_size, n_patches, embed_dim)
 
     @pytest.mark.parametrize("batch_size", [1])
     @pytest.mark.parametrize("img_size", [64])
@@ -39,8 +39,8 @@ class TestEncoder:
         encoder = Encoder(
             img_size=img_size,
             patch_size=patch_size,
-            embed_dim=64,
-            out_dim=32,
+            hidden_dim=64,
+            embed_dim=32,
             depth=2,
             num_heads=2,
         )
@@ -149,13 +149,13 @@ class TestEncoder:
 class TestPredictor:
     @pytest.mark.parametrize("batch_size", [1])
     @pytest.mark.parametrize("n_patches", [8, (8, 8)])
-    @pytest.mark.parametrize("context_encoder_out_dim", [32])
+    @pytest.mark.parametrize("embed_dim", [32])
     @pytest.mark.parametrize("hidden_dim", [32])
-    def test_forward(self, batch_size, n_patches, context_encoder_out_dim, hidden_dim):
+    def test_forward(self, batch_size, n_patches, embed_dim, hidden_dim):
         """Test Predictor's forward pass."""
         predictor = Predictor(
             n_patches=n_patches,
-            context_encoder_out_dim=context_encoder_out_dim,
+            embed_dim=embed_dim,
             hidden_dim=hidden_dim,
             depth=2,
             num_heads=2,
@@ -166,7 +166,7 @@ class TestPredictor:
         n_patches_count = n_patches[0] * n_patches[1]
 
         # Create latents as if they came from encoder
-        latents = torch.randn(batch_size, n_patches_count, context_encoder_out_dim)
+        latents = torch.randn(batch_size, n_patches_count, embed_dim)
 
         # Create target mask (e.g., 25% of patches are targets)
         targets = torch.zeros(batch_size, n_patches_count, dtype=torch.bool)
@@ -180,14 +180,14 @@ class TestPredictor:
         assert predictions.shape == (
             batch_size,
             n_patches_count,
-            context_encoder_out_dim,
+            embed_dim,
         )
 
     def test_invalid_target_shape(self):
         """Test error when target shape doesn't match latent shape."""
         predictor = Predictor(
             n_patches=(8, 8),
-            context_encoder_out_dim=32,
+            embed_dim=32,
             hidden_dim=32,
             depth=1,
             num_heads=2,
@@ -202,7 +202,7 @@ class TestPredictor:
         """Test error when target tensor is not boolean."""
         predictor = Predictor(
             n_patches=(8, 8),
-            context_encoder_out_dim=32,
+            embed_dim=32,
             hidden_dim=32,
             depth=1,
             num_heads=2,
@@ -309,7 +309,7 @@ class TestJEPAIntegration:
         # Create encoder and predictor with smaller dimensions
         img_size = 64
         patch_size = 8
-        encoder_out_dim = 32
+        embed_dim = 32
 
         # Calculate grid dimensions
         img_size_tuple = size_2d_to_int_tuple(img_size)
@@ -322,15 +322,15 @@ class TestJEPAIntegration:
         encoder = Encoder(
             img_size=img_size,
             patch_size=patch_size,
-            embed_dim=64,
-            out_dim=encoder_out_dim,
+            hidden_dim=64,
+            embed_dim=embed_dim,
             depth=2,
             num_heads=2,
         )
 
         predictor = Predictor(
             n_patches=(n_patches_h, n_patches_w),
-            context_encoder_out_dim=encoder_out_dim,
+            embed_dim=embed_dim,
             hidden_dim=32,
             depth=1,
             num_heads=2,
@@ -339,7 +339,7 @@ class TestJEPAIntegration:
         decoder = LightWeightDecoder(
             n_patches=(n_patches_h, n_patches_w),
             patch_size=patch_size,
-            embed_dim=encoder_out_dim,
+            embed_dim=embed_dim,
         )
 
         # Create a smaller batch of images
@@ -361,6 +361,6 @@ class TestJEPAIntegration:
         decoded = decoder(encoded)
 
         # Check shapes
-        assert encoded.shape == (batch_size, n_patches, encoder_out_dim)
-        assert predictions.shape == (batch_size, n_patches, encoder_out_dim)
+        assert encoded.shape == (batch_size, n_patches, embed_dim)
+        assert predictions.shape == (batch_size, n_patches, embed_dim)
         assert decoded.shape == (batch_size, 3, img_size, img_size)
