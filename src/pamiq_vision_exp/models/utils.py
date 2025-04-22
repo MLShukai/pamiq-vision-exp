@@ -19,7 +19,7 @@ def init_weights(m: nn.Module, init_std: float) -> None:
         init_std: Standard deviation for the truncated normal initialization.
     """
     match m:
-        case nn.Linear() | nn.Conv2d():
+        case nn.Linear() | nn.Conv2d() | nn.ConvTranspose2d():
             nn.init.trunc_normal_(m.weight, std=init_std)
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)

@@ -44,6 +44,22 @@ class TestInitWeights:
         assert conv.bias is not None
         assert torch.allclose(conv.bias, torch.zeros_like(conv.bias))
 
+    def test_conv_transpose_2d_initialization(self):
+        """Test Conv2d layer initialization."""
+        # Create a conv layer
+        conv = nn.ConvTranspose2d(3, 6, kernel_size=3)
+        init_std = 0.02
+
+        # Apply initialization
+        init_weights(conv, init_std)
+
+        # Check weight distribution properties
+        assert 0.01 < torch.std(conv.weight).item() < 0.03
+
+        # Check bias is initialized to zeros
+        assert conv.bias is not None
+        assert torch.allclose(conv.bias, torch.zeros_like(conv.bias))
+
     def test_layernorm_initialization(self):
         """Test LayerNorm initialization."""
         # Create a layer norm
