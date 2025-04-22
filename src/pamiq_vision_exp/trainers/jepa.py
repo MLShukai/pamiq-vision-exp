@@ -6,6 +6,7 @@ from multiprocessing import Value
 from pathlib import Path
 from typing import override
 
+import mlflow
 import torch
 import torch.nn.functional as F
 from pamiq_core import DataUser
@@ -202,8 +203,21 @@ class JEPATrainer(TorchTrainer):
                         target_encoder_param.data.mul_(m).add_(
                             (1.0 - m) * context_encoder_param.detach().data
                         )
-
+                metrics = {
+                    "target_encoder_latent_std": latent_from_target_encoder.std(0)
+                    .mean()
+                    .item(),
+                    "context_encoder_latent_std": latent_from_context_encoder.std(0)
+                    .mean()
+                    .item(),
+                    "loss": loss.item(),
+                }
                 # logging
+                mlflow.log_metrics(
+                    {f"jepa/{tag}": v for tag, v in metrics.items()},
+                    self.global_step,
+                )
+
                 self.global_step += 1
 
     @override

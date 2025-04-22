@@ -7,6 +7,7 @@ from pamiq_core.data import DataUsersDict
 from pamiq_core.data.impls import RandomReplacementBuffer
 from pamiq_core.model import TrainingModelsDict
 from pamiq_core.torch import TorchTrainingModel
+from pytest_mock import MockerFixture
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
@@ -91,7 +92,8 @@ class TestJEPATrainer:
         return partial_optimizer
 
     @pytest.fixture
-    def trainer(self, partial_dataloader, partial_optimizer):
+    def trainer(self, partial_dataloader, partial_optimizer, mocker: MockerFixture):
+        mocker.patch("pamiq_vision_exp.trainers.jepa.mlflow")
         return JEPATrainer(
             partial_dataloader,
             partial_optimizer,
