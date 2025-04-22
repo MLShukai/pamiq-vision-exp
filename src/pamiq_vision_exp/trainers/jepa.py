@@ -3,6 +3,7 @@ import math
 import random
 from functools import partial
 from multiprocessing import Value
+from pathlib import Path
 from typing import override
 
 import torch
@@ -67,6 +68,7 @@ class JEPATrainer(TorchTrainer):
         self.partial_dataloader = partial_dataloader
         self.target_encoder_update_moving_average = target_encoder_update_moving_average
         self.max_epochs = max_epochs
+        self.global_step = 0
 
     @override
     def on_data_users_attached(self) -> None:
@@ -200,6 +202,22 @@ class JEPATrainer(TorchTrainer):
                         target_encoder_param.data.mul_(m).add_(
                             (1.0 - m) * context_encoder_param.detach().data
                         )
+
+                # logging
+                self.global_step += 1
+
+    @override
+    def save_state(self, path: Path) -> None:
+        """Save trainer state to disk."""
+        super().save_state(path)
+        path.mkdir(exist_ok=True)
+        (path / "global_step").write_text(str(self.global_step), "utf-8")
+
+    @override
+    def load_state(self, path: Path) -> None:
+        """Load trainer state from disk."""
+        super().load_state(path)
+        self.global_step = int((path / "global_step").read_text("utf-8"))
 
 
 class MultiBlockMaskCollator:

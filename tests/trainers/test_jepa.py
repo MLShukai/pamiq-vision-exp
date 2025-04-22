@@ -1,4 +1,5 @@
 from functools import partial
+from pathlib import Path
 
 import pytest
 import torch
@@ -89,10 +90,17 @@ class TestJEPATrainer:
         partial_optimizer = partial(AdamW, lr=1e-4, weight_decay=0.04)
         return partial_optimizer
 
+    @pytest.fixture
+    def trainer(self, partial_dataloader, partial_optimizer):
+        return JEPATrainer(
+            partial_dataloader,
+            partial_optimizer,
+            min_buffer_size=4,
+            min_new_data_count=2,
+        )
+
     @parametrize_device
-    def test_run(
-        self, device, data_users, models, partial_dataloader, partial_optimizer
-    ):
+    def test_run(self, device, data_users, models, trainer: JEPATrainer):
         """Test JEPA Trainer workflow."""
         models = TrainingModelsDict(
             {
@@ -100,16 +108,25 @@ class TestJEPATrainer:
                 for name, m in models.items()
             }
         )
-        trainer = JEPATrainer(
-            partial_dataloader,
-            partial_optimizer,
-            min_buffer_size=4,
-            min_new_data_count=2,
-        )
+
         trainer.attach_data_users(data_users)
         trainer.attach_training_models(models)
+        assert trainer.global_step == 0
         assert trainer.run() is True
+        assert trainer.global_step > 0
+        global_step = trainer.global_step
         assert trainer.run() is False
+        assert trainer.global_step == global_step
+
+    def test_save_and_load_state(self, trainer: JEPATrainer, tmp_path: Path):
+        trainer_path = tmp_path / "trainer"
+        trainer.save_state(trainer_path)
+        global_step = trainer.global_step
+        assert (trainer_path / "global_step").is_file()
+
+        trainer.global_step = -1
+        trainer.load_state(trainer_path)
+        assert trainer.global_step == global_step
 
 
 class TestMultiBlockMaskCollator:
