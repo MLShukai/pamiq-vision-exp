@@ -7,7 +7,7 @@ class BufferNames(StrEnum):
     IMAGE = auto()
 
 
-class KeyNames(StrEnum):
+class DataKeys(StrEnum):
     """Enumerates all data key names in the experiments."""
 
     IMAGE = auto()
