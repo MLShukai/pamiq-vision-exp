@@ -145,6 +145,19 @@ class TestEncoder:
         with pytest.raises(ValueError, match="Mask tensor dtype must be bool"):
             encoder(images, masks)
 
+    def test_clone(self):
+        encoder = Encoder(
+            img_size=64,
+            patch_size=8,
+            embed_dim=64,
+            depth=1,
+            num_heads=2,
+        )
+        copied = encoder.clone()
+        assert encoder is not copied
+        for p, p_copied in zip(encoder.parameters(), copied.parameters(), strict=True):
+            assert torch.equal(p, p_copied)
+
 
 class TestPredictor:
     @pytest.mark.parametrize("batch_size", [1])

@@ -4,7 +4,8 @@ This module provides the components for the Joint Embedding Predictive
 Architecture (JEPA) model.
 """
 
-from typing import override
+import copy
+from typing import Self, override
 
 import torch
 import torch.nn as nn
@@ -160,6 +161,10 @@ class Encoder(nn.Module):
         self, images: torch.Tensor, masks: torch.Tensor | None = None
     ) -> torch.Tensor:
         return super().__call__(images, masks)
+
+    def clone(self) -> Self:
+        """Clone model for creating target or context encoder."""
+        return copy.deepcopy(self)
 
 
 class Predictor(nn.Module):
