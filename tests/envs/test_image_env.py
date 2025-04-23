@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from pamiq_vision_exp.envs.image import ImageEnvironment
+from pamiq_vision_exp.envs.image_env import ImageEnvironment
 
 
 class TestImageEnvironment:
