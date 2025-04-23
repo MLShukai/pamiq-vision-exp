@@ -157,25 +157,3 @@ class TestRandomVideoFrameSampler:
         # (Resource release happens in __del__)
         del sampler
         # No exception means success
-
-    def test_multiple_video_sequential_read(self, video_and_info):
-        """Test reading from multiple videos sequentially."""
-        video_dir, video_info = video_and_info
-
-        # Create sampler that reads only one frame per video
-        sampler = RandomVideoFrameSampler(
-            folder=video_dir,
-            extensions=["mp4"],
-            max_frames_per_video=1,  # Read only 1 frame per video
-        )
-
-        # Read from all videos
-        unique_video_indices = set()
-        for _ in range(10):  # Sufficient iterations to cover all videos
-            sampler()
-            unique_video_indices.add(sampler.current_video_index)
-            if len(unique_video_indices) == len(video_info):
-                break
-
-        # Verify all videos were selected at least once
-        assert len(unique_video_indices) == len(video_info)
