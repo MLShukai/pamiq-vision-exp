@@ -1016,12 +1016,16 @@ wheels = [
 
 [[package]]
 name = "pamiq-core"
-version = "0.0.3"
-source = { git = "https://github.com/MLShukai/pamiq-core.git#fbef85892855ede2508be30e16d529c3ff38d7ac" }
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "starlette" },
     { name = "uvicorn" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/91/f4/68a86d43679262f79584798ad024ab4f6912dc7270aa68ce019a318b3d52/pamiq_core-0.1.1.tar.gz", hash = "sha256:055513802b54be9ae81b45c8270b5b913a19a4e8ad76f24cb7a823ffbddac35f", size = 404138 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7c/e6/b24e561b8436bc9ac1109a7d50759d7db15d4cb9d8dacf13b97ce7d0578d/pamiq_core-0.1.1-py3-none-any.whl", hash = "sha256:42161d30de598b48307888e4250f9d1488e8444fb49d544bab9cf8f0193ac158", size = 58559 },
 ]
 
 [[package]]
@@ -1048,7 +1052,7 @@ dev = [
 requires-dist = [
     { name = "mlflow", specifier = ">=2.21.3" },
     { name = "numpy", specifier = ">=2.2.5" },
-    { name = "pamiq-core", git = "https://github.com/MLShukai/pamiq-core.git" },
+    { name = "pamiq-core", specifier = ">=0.1.1" },
     { name = "torch", specifier = ">=2.6.0" },
 ]
 
