@@ -8,7 +8,7 @@ class TestImageEnvironment:
     def test_observe_basic_functionality(self):
         """Test that observe method returns the correct image tensor."""
         # Create a simple generator that returns a constant image
-        test_image = torch.ones(3, 64, 64)  # RGB image of size 64x64
+        test_image = torch.rand(3, 64, 64)  # RGB image of size 64x64
 
         def generator():
             return test_image
