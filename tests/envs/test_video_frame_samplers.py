@@ -155,5 +155,6 @@ class TestRandomVideoFrameSampler:
 
         # Verify that deleting the sampler doesn't cause exceptions
         # (Resource release happens in __del__)
-        del sampler
+        sampler.__del__()
         # No exception means success
+        assert not sampler.current_video.isOpened()
