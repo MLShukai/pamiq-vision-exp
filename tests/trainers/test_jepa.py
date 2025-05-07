@@ -3,9 +3,8 @@ from pathlib import Path
 
 import pytest
 import torch
-from pamiq_core.data import DataUsersDict
 from pamiq_core.data.impls import RandomReplacementBuffer
-from pamiq_core.model import TrainingModelsDict
+from pamiq_core.testing import connect_components
 from pamiq_core.torch import TorchTrainingModel
 from pytest_mock import MockerFixture
 from torch.optim import AdamW
@@ -60,19 +59,10 @@ class TestJEPATrainer:
         }
 
     @pytest.fixture
-    def data_users(self):
-        buf = RandomReplacementBuffer([DataKeys.IMAGE], max_size=16)
-        d = DataUsersDict.from_data_buffers({BufferNames.IMAGE: buf})
-        collector = d.data_collectors_dict[BufferNames.IMAGE]
-        for _ in range(10):
-            collector.collect(
-                {
-                    DataKeys.IMAGE: torch.randn(
-                        self.CHANNELS, self.IMAGE_SIZE, self.IMAGE_SIZE
-                    )
-                }
-            )
-        return d
+    def data_buffers(self):
+        return {
+            BufferNames.IMAGE: RandomReplacementBuffer([DataKeys.IMAGE], max_size=16)
+        }
 
     @pytest.fixture
     def partial_dataloader(self):
@@ -102,17 +92,26 @@ class TestJEPATrainer:
         )
 
     @parametrize_device
-    def test_run(self, device, data_users, models, trainer: JEPATrainer):
+    def test_run(self, device, data_buffers, models, trainer: JEPATrainer):
         """Test JEPA Trainer workflow."""
-        models = TrainingModelsDict(
-            {
-                name: TorchTrainingModel(m, has_inference_model=False, device=device)
-                for name, m in models.items()
-            }
-        )
+        models = {
+            name: TorchTrainingModel(m, has_inference_model=False, device=device)
+            for name, m in models.items()
+        }
 
-        trainer.attach_data_users(data_users)
-        trainer.attach_training_models(models)
+        components = connect_components(
+            trainers=trainer, buffers=data_buffers, models=models
+        )
+        collector = components.data_collectors[BufferNames.IMAGE]
+        for _ in range(10):
+            collector.collect(
+                {
+                    DataKeys.IMAGE: torch.randn(
+                        self.CHANNELS, self.IMAGE_SIZE, self.IMAGE_SIZE
+                    )
+                }
+            )
+
         assert trainer.global_step == 0
         assert trainer.run() is True
         assert trainer.global_step > 0
