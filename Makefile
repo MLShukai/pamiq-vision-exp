@@ -28,7 +28,7 @@ run: format test type ## Run all workflow
 #  Docker Settings
 # -----------------
 ENABLE_GPU   ?= true
-DATA_DIR     ?= 
+DATA_DIR     ?=
 
 # Compose files
 BASE_COMPOSE  := -f docker/base.yml
