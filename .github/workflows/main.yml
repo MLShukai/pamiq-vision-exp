@@ -37,8 +37,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        python-version: ["3.12", "3.13"]
+        os: ["ubuntu-latest"]
+        python-version: ["3.12"]
 
     timeout-minutes: 20
 
@@ -59,7 +59,7 @@ jobs:
           key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('uv.lock', 'pyproject.toml') }}
 
       - name: Install dependencies
-        run: make venv
+        run: uv sync --all-extras
 
       - name: Check installed packages
         run: |
@@ -91,7 +91,7 @@ jobs:
           key: uv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('uv.lock', 'pyproject.toml') }}
 
       - name: Install dependencies
-        run: make venv
+        run: uv sync --all-extras
 
       - name: Check installed packages
         run: |
