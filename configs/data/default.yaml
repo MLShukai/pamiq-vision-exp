@@ -1,0 +1,5 @@
+image:
+  _target_: pamiq_core.data.impls.RandomReplacementBuffer
+  collecting_data_names: "image"
+  max_size: 2048
+  replace_probability: 0.18 # remains 864000 = (24 * 60 * 60 * 10) steps
