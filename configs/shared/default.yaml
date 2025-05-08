@@ -1,3 +1,4 @@
-image:
+video:
   height: 144
   width: 144
+  fps: 10

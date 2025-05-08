@@ -2,4 +2,13 @@ image:
   _target_: pamiq_core.data.impls.RandomReplacementBuffer
   collecting_data_names: "image"
   max_size: 2048
-  replace_probability: 0.18 # remains 864000 = (24 * 60 * 60 * 10) steps
+  # 0.5572 is Euler constant.
+  # See https://zenn.dev/link/comments/453a1b870cdbb6
+  replace_probability: >-
+    ${python.eval:(
+      ${.max_size}
+      / ${python.eval:"${24 * 60 * 60 * ${shared.video.fps} + 0.4}"}
+      * ${python.eval:(
+        ${math.log:${.max_size}} + 0.5772
+      )}
+    )}
