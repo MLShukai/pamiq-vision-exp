@@ -1,0 +1,17 @@
+_target_: pamiq_core.FixedIntervalInteraction.with_sleep_adjustor
+interval: 0.1 # 10 FPS
+
+agent:
+  _target_: pamiq_vision_exp.agents.image_collecting.ImageCollectingAgent
+
+environment:
+  _target_: pamiq_vision_exp.envs.image_env.ImageEnvironment
+  size:
+  - ${shared.image.height}
+  - ${shared.image.width}
+
+  image_generator:
+    _target_: pamiq_vision_exp.envs.video_frame_samplers.RandomVideoFrameSampler
+    folder: ${paths.data_dir}
+    extensions: ["mp4"]
+    max_frames_per_video: ${python.eval:"1 * 60 * 60 * 10"} # 10fps x 1hour
