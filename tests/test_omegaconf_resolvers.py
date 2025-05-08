@@ -1,3 +1,4 @@
+import math
 import os
 from pathlib import Path
 
@@ -38,6 +39,7 @@ def test_resolovers(file_dir_for_glob: Path):
     assert OmegaConf.create(
         {"glob": "${glob:" + f"{file_dir_for_glob}/*" + "}"}
     ).glob == list(map(str, file_dir_for_glob.glob("*")))
+    assert OmegaConf.create({"log": "${math.log:10}"}).log == math.log(10)
 
 
 def test_time_string_to_seconds():

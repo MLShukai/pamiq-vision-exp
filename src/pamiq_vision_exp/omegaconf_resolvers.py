@@ -4,6 +4,7 @@ See: https://omegaconf.readthedocs.io/en/latest/custom_resolvers.html
 """
 
 import glob
+import math
 import os
 import re
 
@@ -31,6 +32,7 @@ def register_custom_resolvers() -> None:
         )  # Usage: ${cvt_time_str:"1h"}
         OmegaConf.register_new_resolver("os.cpu_count", os.cpu_count)
         OmegaConf.register_new_resolver("glob", glob.glob)
+        OmegaConf.register_new_resolver("math.log", math.log)
 
         _registered = True
 
