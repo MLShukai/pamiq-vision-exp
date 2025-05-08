@@ -12,6 +12,7 @@ dependencies = [
     "numpy>=2.2.5",
     "opencv-python>=4.11.0.86",
     "pamiq-core>=0.2.0",
+    "rootutils>=1.0.7",
     "torch>=2.6.0",
     "torchvision>=0.21.0",
 ]
