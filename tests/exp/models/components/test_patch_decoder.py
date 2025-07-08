@@ -1,8 +1,8 @@
 import pytest
 import torch
 
+from exp.models.components.image_patchifier import ImagePatchifier
 from exp.models.components.patch_decoder import PatchDecoder
-from exp.models.components.patch_embedding import PatchEmbedding
 
 
 class TestPatchDecoder:
@@ -44,7 +44,7 @@ class TestPatchDecoder:
         input_img = torch.randn(batch_size, 3, img_size, img_size)
 
         # Create embedding and decoding layers
-        embedder = PatchEmbedding(
+        embedder = ImagePatchifier(
             patch_size=patch_size,
             in_channels=3,
             embed_dim=embed_dim,
