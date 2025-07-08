@@ -3,7 +3,7 @@ from typing import override
 from pamiq_core import Agent
 from torch import Tensor
 
-from pamiq_vision_exp.data import BufferNames, DataKeys
+from exp.data import BufferNames, DataKeys
 
 
 class ImageCollectingAgent(Agent[Tensor, None]):

@@ -15,10 +15,10 @@ from torch import Tensor
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader, TensorDataset, default_collate
 
-from pamiq_vision_exp.data import BufferNames, DataKeys
-from pamiq_vision_exp.models import ModelNames
-from pamiq_vision_exp.models.jepa import Encoder, Predictor
-from pamiq_vision_exp.models.utils import size_2d, size_2d_to_int_tuple
+from exp.data import BufferNames, DataKeys
+from exp.models import ModelNames
+from exp.models.jepa import Encoder, Predictor
+from exp.models.utils import size_2d, size_2d_to_int_tuple
 
 OPTIMIZER_NAME = "optimizer"
 

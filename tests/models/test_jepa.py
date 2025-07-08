@@ -1,8 +1,8 @@
 import pytest
 import torch
 
-from pamiq_vision_exp.models.jepa import Encoder, LightWeightDecoder, Predictor
-from pamiq_vision_exp.models.utils import size_2d_to_int_tuple
+from exp.models.jepa import Encoder, LightWeightDecoder, Predictor
+from exp.models.utils import size_2d_to_int_tuple
 
 
 class TestEncoder:

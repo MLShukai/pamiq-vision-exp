@@ -1,8 +1,8 @@
 import pytest
 import torch
 
-from pamiq_vision_exp.models.components.patch_decoder import PatchDecoder
-from pamiq_vision_exp.models.components.patch_embedding import PatchEmbedding
+from exp.models.components.patch_decoder import PatchDecoder
+from exp.models.components.patch_embedding import PatchEmbedding
 
 
 class TestPatchDecoder:

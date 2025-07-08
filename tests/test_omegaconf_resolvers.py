@@ -6,7 +6,7 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 
-from pamiq_vision_exp.omegaconf_resolvers import (
+from exp.omegaconf_resolvers import (
     register_custom_resolvers,
     time_string_to_seconds,
 )

@@ -2,7 +2,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from pamiq_vision_exp.models.utils import init_weights, size_2d, size_2d_to_int_tuple
+from exp.models.utils import init_weights, size_2d, size_2d_to_int_tuple
 
 
 @pytest.mark.parametrize("input,expected", [(10, (10, 10)), ((2, 3), (2, 3))])

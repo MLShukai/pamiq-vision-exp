@@ -5,7 +5,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from pamiq_vision_exp.models.components.transformer import (
+from exp.models.components.transformer import (
     MLP,
     Attention,
     Transformer,

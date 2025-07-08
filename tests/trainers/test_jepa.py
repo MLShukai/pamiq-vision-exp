@@ -10,10 +10,10 @@ from pytest_mock import MockerFixture
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
-from pamiq_vision_exp.data import BufferNames, DataKeys
-from pamiq_vision_exp.models import ModelNames
-from pamiq_vision_exp.models.jepa import Encoder, Predictor
-from pamiq_vision_exp.trainers.jepa import JEPATrainer, MultiBlockMaskCollator
+from exp.data import BufferNames, DataKeys
+from exp.models import ModelNames
+from exp.models.jepa import Encoder, Predictor
+from exp.trainers.jepa import JEPATrainer, MultiBlockMaskCollator
 from tests.helpers import parametrize_device
 
 
@@ -83,7 +83,7 @@ class TestJEPATrainer:
 
     @pytest.fixture
     def trainer(self, partial_dataloader, partial_optimizer, mocker: MockerFixture):
-        mocker.patch("pamiq_vision_exp.trainers.jepa.mlflow")
+        mocker.patch("exp.trainers.jepa.mlflow")
         return JEPATrainer(
             partial_dataloader,
             partial_optimizer,

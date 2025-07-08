@@ -3,7 +3,7 @@ import torch
 from pamiq_core import DataCollector
 from pytest_mock import MockerFixture
 
-from pamiq_vision_exp.agents.image_collecting import DataKeys, ImageCollectingAgent
+from exp.agents.image_collecting import DataKeys, ImageCollectingAgent
 
 
 class TestImageCollectingAgent:

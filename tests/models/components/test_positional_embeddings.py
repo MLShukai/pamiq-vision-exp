@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from pamiq_vision_exp.models.components.positional_embeddings import (
+from exp.models.components.positional_embeddings import (
     get_2d_positional_embeddings,
     size_2d,
 )

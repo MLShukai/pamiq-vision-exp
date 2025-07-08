@@ -6,7 +6,7 @@ import pytest
 import torch
 from pytest_mock import MockerFixture
 
-from pamiq_vision_exp.envs.video_frame_samplers import RandomVideoFrameSampler
+from exp.envs.video_frame_samplers import RandomVideoFrameSampler
 
 
 class TestRandomVideoFrameSampler:
