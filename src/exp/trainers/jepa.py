@@ -81,7 +81,9 @@ class JEPATrainer(TorchTrainer):
         during training.
         """
         super().on_data_users_attached()
-        self.image_data_user: DataUser[Tensor] = self.get_data_user(self.data_user_name)
+        self.image_data_user: DataUser[list[Tensor]] = self.get_data_user(
+            self.data_user_name
+        )
 
     @override
     def on_training_models_attached(self) -> None:
@@ -140,9 +142,7 @@ class JEPATrainer(TorchTrainer):
         The target encoder serves as a momentum-updated teacher model that provides
         stable targets for the context encoder and predictor to learn from.
         """
-        dataset = TensorDataset(
-            torch.stack(list(self.image_data_user.get_data()[DataKeys.IMAGE]))
-        )
+        dataset = TensorDataset(torch.stack(self.image_data_user.get_data()))
         dataloader = self.partial_dataloader(dataset=dataset)
         device = get_device(self.context_encoder.model)
 

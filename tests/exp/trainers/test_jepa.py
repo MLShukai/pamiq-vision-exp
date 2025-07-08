@@ -60,9 +60,7 @@ class TestJEPATrainer:
 
     @pytest.fixture
     def data_buffers(self):
-        return {
-            BufferNames.IMAGE: RandomReplacementBuffer([DataKeys.IMAGE], max_size=16)
-        }
+        return {BufferNames.IMAGE: RandomReplacementBuffer(max_size=16)}
 
     @pytest.fixture
     def partial_dataloader(self):
@@ -105,11 +103,7 @@ class TestJEPATrainer:
         collector = components.data_collectors[BufferNames.IMAGE]
         for _ in range(10):
             collector.collect(
-                {
-                    DataKeys.IMAGE: torch.randn(
-                        self.CHANNELS, self.IMAGE_SIZE, self.IMAGE_SIZE
-                    )
-                }
+                torch.randn(self.CHANNELS, self.IMAGE_SIZE, self.IMAGE_SIZE)
             )
 
         assert trainer.global_step == 0
