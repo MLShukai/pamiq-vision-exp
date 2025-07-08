@@ -3,26 +3,33 @@ services:
     container_name: pamiq-vision-exp-${USER}
     image: pamiq-vision-exp:${USER}
     build:
-      context: ../
-      dockerfile: ./docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     volumes:
       - pamiq-vision-exp:/workspace
       - uv_cache:/root/.cache/uv
       - pip_cache:/root/.cache/pip
       - pre-commit_cache:/root/.cache/pre-commit
+      # Time zone
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      # Log dir
+      - ${LOG_DIR:-./logs}:/workspace/logs
+      # Data dir
+      - ${DATA_DIR:-./data}:/workspace/data
     environment:
       - PYRIGHT_PYTHON_FORCE_VERSION=latest
     tty: true
     stdin_open: true
     privileged: true
+    network_mode: host
     working_dir: /workspace
     command: /bin/bash
     stop_grace_period: 0s
-    shm_size: 8gb
 
 volumes:
   pamiq-vision-exp:
-    name: pamiq-vision-exp
+    name: pamiq-vision-exp-${USER}
   uv_cache:
   pip_cache:
   pre-commit_cache:

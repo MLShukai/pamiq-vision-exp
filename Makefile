@@ -28,12 +28,12 @@ run: format test type ## Run all workflow
 #  Docker Settings
 # -----------------
 ENABLE_GPU   ?= true
-DATA_DIR     ?=
+DATA_DIR     ?= ./data
+LOG_DIR		 ?= ./logs
 
 # Compose files
-BASE_COMPOSE  := -f docker/base.yml
-NVIDIA_COMPOSE   := -f docker/nvidia.yml
-DATA_COMPOSE := -f docker/data.yml
+BASE_COMPOSE  := -f docker-compose.yml
+NVIDIA_COMPOSE   := -f docker-compose.nvidia.yml
 
 # Auto-detection capabilities.
 HAS_NVIDIA := $(shell which nvidia-smi > /dev/null 2>&1 && echo true || echo false)
@@ -46,24 +46,21 @@ ifeq ($(ENABLE_GPU),true)
   endif
 endif
 
-ifneq ($(DATA_DIR),)
-  COMPOSE_FILES += $(DATA_COMPOSE)
-endif
-
 docker-build: ## Build docker images
-	docker compose -f docker/base.yml build --no-cache
+	docker compose $(BASE_COMPOSE) build --no-cache
 
 docker-up: ## Start docker containers (ENABLE_GPU=false to disable GPU, ENABLE_AUDIO=false to disable audio)
 	@echo "→ Starting dev container"
 	@echo "  GPU: $(ENABLE_GPU) (detected: NVIDIA: $(HAS_NVIDIA))"
-	@echo "  DATA: $(if $(DATA_DIR),enabled,disabled)"
+	@echo "  Data dir: $(DATA_DIR)"
+	@echo "  Log dir: $(LOG_DIR)"
 	docker compose $(COMPOSE_FILES) up -d
 
 docker-down: ## Stop docker containers
-	docker compose -f docker/base.yml down
+	docker compose $(BASE_COMPOSE) down
 
 docker-down-volume:  ## Stop docker containers with removing volumes.
-	docker compose -f docker/base.yml down -v
+	docker compose $(BASE_COMPOSE) down -v
 
 docker-attach: ## Attach to development container
-	docker compose -f docker/base.yml exec dev bash
+	docker compose $(BASE_COMPOSE) exec dev bash
