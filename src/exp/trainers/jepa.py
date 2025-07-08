@@ -6,7 +6,6 @@ from multiprocessing import Value
 from pathlib import Path
 from typing import override
 
-import mlflow
 import torch
 import torch.nn.functional as F
 from pamiq_core import DataUser
@@ -15,6 +14,7 @@ from torch import Tensor
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader, TensorDataset, default_collate
 
+from exp.aim_utils import get_global_run
 from exp.data import BufferNames, DataKeys
 from exp.models import ModelNames
 from exp.models.jepa import Encoder, Predictor
@@ -213,11 +213,14 @@ class JEPATrainer(TorchTrainer):
                     "loss": loss.item(),
                 }
                 # logging
-                mlflow.log_metrics(
-                    {f"jepa/{tag}": v for tag, v in metrics.items()},
-                    self.global_step,
-                )
-
+                if run := get_global_run():
+                    for k, v in metrics.items():
+                        run.track(
+                            v,
+                            f"jepa/{k}",
+                            self.global_step,
+                            context={"trainer": "jepa"},
+                        )
                 self.global_step += 1
 
     @override

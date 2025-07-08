@@ -83,7 +83,7 @@ class TestJEPATrainer:
 
     @pytest.fixture
     def trainer(self, partial_dataloader, partial_optimizer, mocker: MockerFixture):
-        mocker.patch("exp.trainers.jepa.mlflow")
+        mocker.patch("exp.trainers.jepa.get_global_run")
         return JEPATrainer(
             partial_dataloader,
             partial_optimizer,
