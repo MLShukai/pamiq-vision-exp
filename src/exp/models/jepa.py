@@ -11,11 +11,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from exp.utils import size_2d, size_2d_to_int_tuple
+
 from .components.patch_decoder import PatchDecoder
 from .components.patch_embedding import PatchEmbedding
 from .components.positional_embeddings import get_2d_positional_embeddings
 from .components.transformer import Transformer
-from .utils import init_weights, size_2d, size_2d_to_int_tuple
+from .utils import init_weights
 
 
 class Encoder(nn.Module):

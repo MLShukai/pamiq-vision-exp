@@ -3,7 +3,9 @@ from typing import override
 import torch
 import torch.nn as nn
 
-from ..utils import init_weights, size_2d
+from exp.utils import size_2d
+
+from ..utils import init_weights
 
 
 class PatchEmbedding(nn.Module):

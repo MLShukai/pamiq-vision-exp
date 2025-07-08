@@ -3,7 +3,7 @@
 import numpy as np
 import numpy.typing as npt
 
-from ..utils import size_2d, size_2d_to_int_tuple
+from exp.utils import size_2d, size_2d_to_int_tuple
 
 
 def get_2d_positional_embeddings(

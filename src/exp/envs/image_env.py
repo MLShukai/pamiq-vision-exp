@@ -6,7 +6,7 @@ import torchvision.transforms.v2.functional as F
 from pamiq_core import Environment
 from torch import Tensor
 
-from exp.models.utils import size_2d, size_2d_to_int_tuple
+from exp.utils import size_2d, size_2d_to_int_tuple
 
 
 class ImageEnvironment(Environment[Tensor, Any]):

@@ -3,7 +3,9 @@ from typing import override
 import torch
 import torch.nn as nn
 
-from ..utils import init_weights, size_2d, size_2d_to_int_tuple
+from exp.utils import size_2d, size_2d_to_int_tuple
+
+from ..utils import init_weights
 
 
 class PatchDecoder(nn.Module):
