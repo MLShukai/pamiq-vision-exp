@@ -4,7 +4,7 @@ from omegaconf import DictConfig
 from pamiq_core import LaunchConfig, launch
 
 PROJECT_ROOT = rootutils.setup_root(
-    __file__, indicator=".project-root", pythonpath=True
+    __file__, indicator="pyproject.toml", pythonpath=True
 )
 
 
