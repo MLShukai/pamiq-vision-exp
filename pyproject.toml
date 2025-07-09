@@ -6,12 +6,12 @@ readme = "README.md"
 authors = []
 requires-python = ">=3.12"
 dependencies = [
+    "aim>=3.29.1",
     "hydra-colorlog>=1.2.0",
     "hydra-core>=1.3.2",
-    "mlflow>=2.21.3",
     "numpy>=2.2.5",
     "opencv-python>=4.11.0.86",
-    "pamiq-core>=0.2.0",
+    "pamiq-core>=0.5.1",
     "rootutils>=1.0.7",
     "torch>=2.6.0",
     "torchvision>=0.21.0",
@@ -20,6 +20,9 @@ dependencies = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/exp"]
 
 [dependency-groups]
 dev = [
@@ -134,5 +137,4 @@ exclude_lines = [
     "if __name__ == __main__:",
     "pass",
     "raise ImportError",
-    "..."
 ]

@@ -2,16 +2,16 @@ _target_: pamiq_core.FixedIntervalInteraction.with_sleep_adjustor
 interval: ${python.eval:"1 / ${shared.video.fps}"}
 
 agent:
-  _target_: pamiq_vision_exp.agents.image_collecting.ImageCollectingAgent
+  _target_: exp.agents.image_collecting.ImageCollectingAgent
 
 environment:
-  _target_: pamiq_vision_exp.envs.image_env.ImageEnvironment
+  _target_: exp.envs.image_env.ImageEnvironment
   size:
   - ${shared.video.height}
   - ${shared.video.width}
 
   image_generator:
-    _target_: pamiq_vision_exp.envs.video_frame_samplers.RandomVideoFrameSampler
+    _target_: exp.envs.video_frame_samplers.RandomVideoFrameSampler
     folder: ${paths.data_dir}
     extensions: ["mp4"]
     max_frames_per_video: ${python.eval:"1 * 60 * 60 * ${shared.video.fps}"}

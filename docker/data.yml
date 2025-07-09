@@ -1,4 +1,0 @@
-services:
-  dev:
-    volumes:
-      - ${DATA_DIR}:/workspace/data
