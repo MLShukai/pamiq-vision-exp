@@ -5,17 +5,18 @@ Architecture (JEPA) model.
 """
 
 import copy
-from typing import Self, override
+import math
+from collections.abc import Callable
+from typing import Any, Literal, Self, override
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch import Tensor
 
 from exp.utils import size_2d, size_2d_to_int_tuple
 
-from .components.image_patchifier import ImagePatchifier
 from .components.patch_decoder import PatchDecoder
-from .components.positional_embeddings import get_2d_positional_embeddings
 from .components.transformer import Transformer
 from .utils import init_weights
 
@@ -26,9 +27,8 @@ class Encoder(nn.Module):
 
     def __init__(
         self,
-        img_size: size_2d = 224,
-        patch_size: size_2d = 16,
-        in_channels: int = 3,
+        patchifier: Callable[[Tensor], Tensor] | None = None,
+        positional_encodings: Tensor | None = None,
         hidden_dim: int = 768,
         embed_dim: int = 384,
         depth: int = 12,
@@ -43,8 +43,8 @@ class Encoder(nn.Module):
         """Initialize the JEPAEncoder.
 
         Args:
-            img_size: Input image size.
-            patch_size: Pixel size per patch.
+            patchifier: Patchfy input data to patch sequence.
+            positional_encodings: Positional encoding tensors to be added to patchfied input data.
             in_channels: Input image channels.
             hidden_dim: Hidden dimension per patch.
             embed_dim: Output dimension per patch.
@@ -61,42 +61,21 @@ class Encoder(nn.Module):
         self.num_features = self.embed_dim = hidden_dim
         self.num_heads = num_heads
 
-        # define input layer to convert input image into patches.
-        self.patch_embed = ImagePatchifier(
-            patch_size=patch_size,
-            in_channels=in_channels,
-            embed_dim=hidden_dim,
-        )
+        if positional_encodings is not None:
+            if positional_encodings.ndim != 2:
+                raise ValueError("positional_encodings must be 2d tensor!")
+            if positional_encodings.size(1) != hidden_dim:
+                raise ValueError(
+                    "positional_encodings channel dimension must be hidden_dim."
+                )
+
+        self.patchfier = patchifier if patchifier is not None else nn.Identity()
 
         # define mask token_vector
         self.mask_token_vector = nn.Parameter(torch.empty(hidden_dim))
 
-        # define positional encodings
-        img_size = size_2d_to_int_tuple(img_size)
-        patch_size = size_2d_to_int_tuple(patch_size)
-        img_height, img_width = img_size
-        patch_height, patch_width = patch_size
-
-        if img_height % patch_height != 0:
-            raise ValueError(
-                f"Image height {img_height} must be divisible by patch height {patch_height}"
-            )
-        if img_width % patch_width != 0:
-            raise ValueError(
-                f"Image width {img_width} must be divisible by patch width {patch_width}"
-            )
-
-        n_patches_hw = (img_height // patch_height, img_width // patch_width)
-        n_patches = n_patches_hw[0] * n_patches_hw[1]
-
-        positional_encodings = get_2d_positional_embeddings(
-            hidden_dim,
-            n_patches_hw,
-        ).reshape(1, n_patches, hidden_dim)
-        self.positional_encodings: torch.Tensor
-        self.register_buffer(
-            "positional_encodings", torch.from_numpy(positional_encodings).float()
-        )
+        self.positional_encodings: Tensor | None
+        self.register_buffer("positional_encodings", positional_encodings)
 
         # define transformer
         self.transformer = Transformer(
@@ -118,13 +97,11 @@ class Encoder(nn.Module):
         init_weights(self.out_proj, init_std)
 
     @override
-    def forward(
-        self, images: torch.Tensor, masks: torch.Tensor | None = None
-    ) -> torch.Tensor:
+    def forward(self, data: Tensor, masks: Tensor | None = None) -> Tensor:
         """Encode input images into latents, applying masks if provided.
 
         Args:
-            images: Input images with shape [batch_size, 3, height, width]
+            data: Input data
             masks: Boolean masks for images embedded as patches with shape
                 [batch_size, n_patches]. True values indicate masked patches.
 
@@ -132,7 +109,8 @@ class Encoder(nn.Module):
             Encoded latents with shape [batch_size, n_patches, out_dim]
         """
         # Patchify input images
-        x = self.patch_embed(images)
+
+        x = self.patchfier(data)
         # x: [batch_size, n_patches, embed_dim]
 
         # Apply mask if provided
@@ -149,7 +127,8 @@ class Encoder(nn.Module):
             x[masks] = self.mask_token_vector
 
         # Add positional embedding to x
-        x = x + self.positional_encodings
+        if self.positional_encodings is not None:
+            x = x + self.positional_encodings
 
         # Apply transformer
         x = self.transformer(x)
@@ -175,7 +154,7 @@ class Predictor(nn.Module):
 
     def __init__(
         self,
-        n_patches: size_2d,
+        positional_encodings: Tensor | None = None,
         embed_dim: int = 384,
         hidden_dim: int = 384,
         depth: int = 6,
@@ -204,22 +183,20 @@ class Predictor(nn.Module):
             init_std: Standard deviation for weight initialization.
         """
         super().__init__()
-
+        if positional_encodings is not None:
+            if positional_encodings.ndim != 2:
+                raise ValueError("positional_encodings must be 2d tensor!")
+            if positional_encodings.size(1) != hidden_dim:
+                raise ValueError(
+                    "positional_encodings channel dimension must be hidden_dim."
+                )
         self.input_proj = nn.Linear(embed_dim, hidden_dim, bias=True)
 
         # prepare tokens representing patches to be predicted
         self.prediction_token_vector = nn.Parameter(torch.empty(hidden_dim))
 
-        # define positional encodings
-        (n_patches_vertical, n_patches_horizontal) = size_2d_to_int_tuple(n_patches)
-        positional_encodings = get_2d_positional_embeddings(
-            hidden_dim, grid_size=(n_patches_vertical, n_patches_horizontal)
-        ).reshape(1, n_patches_vertical * n_patches_horizontal, hidden_dim)
-
-        self.positional_encodings: torch.Tensor
-        self.register_buffer(
-            "positional_encodings", torch.from_numpy(positional_encodings).float()
-        )
+        self.positional_encodings: Tensor | None
+        self.register_buffer("positional_encodings", positional_encodings)
 
         # define transformer
         self.transformer = Transformer(
@@ -244,9 +221,9 @@ class Predictor(nn.Module):
     @override
     def forward(
         self,
-        latents: torch.Tensor,
-        targets: torch.Tensor,
-    ) -> torch.Tensor:
+        latents: Tensor,
+        targets: Tensor,
+    ) -> Tensor:
         """Predict latents of target patches based on input latents and boolean
         targets.
 
@@ -277,7 +254,8 @@ class Predictor(nn.Module):
         x[targets] += self.prediction_token_vector
 
         # Add positional encodings
-        x = x + self.positional_encodings
+        if self.positional_encodings is not None:
+            x = x + self.positional_encodings
 
         # Apply transformer
         x = self.transformer(x)
@@ -287,9 +265,7 @@ class Predictor(nn.Module):
 
         return x
 
-    @override
-    def __call__(self, latents: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        return super().__call__(latents, targets)
+    __call__: Callable[[Tensor, Tensor], Tensor]
 
 
 class LightWeightDecoder(nn.Module):
@@ -357,7 +333,7 @@ class LightWeightDecoder(nn.Module):
         ]
 
     @override
-    def forward(self, latents: torch.Tensor) -> torch.Tensor:
+    def forward(self, latents: Tensor) -> Tensor:
         """Decode input latents into reconstructed image.
 
         Args:
@@ -374,6 +350,85 @@ class LightWeightDecoder(nn.Module):
         x = self.patch_decoder(x)  # [batch, channels, height, width]
         return x
 
-    @override
-    def __call__(self, latents: torch.Tensor) -> torch.Tensor:
-        return super().__call__(latents)
+    __call__: Callable[[Tensor], Tensor]
+
+
+from pamiq_core.torch import TorchTrainingModel, get_device
+
+from .components.image_patchifier import ImagePatchifier
+from .components.positional_embeddings import get_2d_positional_embeddings
+from .names import ModelNames
+
+
+def create_image_jepa(
+    image_size: size_2d,
+    patch_size: size_2d,
+    in_channels: int = 3,
+    hidden_dim: int = 768,
+    embed_dim: int = 128,
+    depth: int = 6,
+    num_heads: int = 3,
+) -> dict[ModelNames, nn.Module]:
+    """Create a complete Image JEPA (Joint Embedding Predictive Architecture)
+    model.
+
+    This factory function creates all components needed for Image JEPA training and inference,
+    including context encoder, target encoder, predictor, and inference pooling. The target
+    encoder is initialized as a clone of the context encoder for momentum-based updates.
+
+    Args:
+        image_size: Input image dimensions as (height, width) or single int for square images.
+        patch_size: Patch dimensions as (height, width) or single int for square patches.
+        in_channels: Number of input image channels (e.g., 3 for RGB).
+        hidden_dim: Hidden dimension for encoder transformers.
+        embed_dim: Output embedding dimension for encoders.
+        depth: Number of transformer layers in encoders.
+        num_heads: Number of attention heads in encoders.
+        output_downsample: Downsampling factor for inference pooling as (height, width) or single int.
+
+    Returns:
+        A tuple containing:
+            - context_encoder: Encoder for processing masked images
+            - target_encoder: Encoder clone for generating targets (updated via EMA)
+            - predictor: Predictor for reconstructing target patches from context
+            - infer: AveragePoolInfer for downsampled inference
+            - num_patches: Final patch dimensions after downsampling as (height, width)
+
+    NOTE:
+        The predictor uses half the hidden dimensions and attention heads of the encoders
+        for efficiency. The target encoder should be updated using exponential moving
+        average of the context encoder parameters during training.
+    """
+    patchifier = ImagePatchifier(
+        patch_size,
+        in_channels=in_channels,
+        embed_dim=hidden_dim,
+    )
+    num_patches = ImagePatchifier.compute_num_patches(image_size, patch_size)
+
+    context_encoder = Encoder(
+        patchifier,
+        get_2d_positional_embeddings(hidden_dim, num_patches).reshape(-1, hidden_dim),
+        hidden_dim=hidden_dim,
+        embed_dim=embed_dim,
+        depth=depth,
+        num_heads=num_heads,
+    )
+
+    target_encoder = context_encoder.clone()
+
+    predictor = Predictor(
+        get_2d_positional_embeddings(hidden_dim // 2, num_patches).reshape(
+            -1, hidden_dim // 2
+        ),
+        embed_dim=embed_dim,
+        hidden_dim=hidden_dim // 2,
+        depth=depth,
+        num_heads=num_heads // 2,
+    )
+
+    return {
+        ModelNames.JEPA_CONTEXT_ENCODER: context_encoder,
+        ModelNames.JEPA_TARGET_ENCODER: target_encoder,
+        ModelNames.JEPA_PREDICTOR: predictor,
+    }

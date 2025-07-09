@@ -10,9 +10,8 @@ from pytest_mock import MockerFixture
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
-from exp.data import BufferNames, DataKeys
-from exp.models import ModelNames
-from exp.models.jepa import Encoder, Predictor
+from exp.data import BufferNames
+from exp.models.jepa import create_image_jepa
 from exp.trainers.jepa import JEPATrainer, MultiBlockMaskCollator
 from tests.helpers import parametrize_device
 
@@ -25,38 +24,16 @@ class TestJEPATrainer:
     N_PATCHES = IMAGE_SIZE // PATCH_SIZE
 
     @pytest.fixture
-    def context_encoder(self):
-        return Encoder(
-            img_size=self.IMAGE_SIZE,
-            patch_size=self.PATCH_SIZE,
+    def models(self):
+        return create_image_jepa(
+            self.IMAGE_SIZE,
+            self.PATCH_SIZE,
             in_channels=self.CHANNELS,
             hidden_dim=128,
             embed_dim=self.EMBED_DIM,
-            depth=1,
             num_heads=2,
-        )
-
-    @pytest.fixture
-    def target_encoder(self, context_encoder: Encoder):
-        return context_encoder.clone()
-
-    @pytest.fixture
-    def predictor(self):
-        return Predictor(
-            n_patches=self.N_PATCHES,
-            embed_dim=self.EMBED_DIM,
-            hidden_dim=64,
             depth=1,
-            num_heads=2,
         )
-
-    @pytest.fixture
-    def models(self, context_encoder, target_encoder, predictor):
-        return {
-            ModelNames.JEPA_CONTEXT_ENCODER: context_encoder,
-            ModelNames.JEPA_TARGET_ENCODER: target_encoder,
-            ModelNames.JEPA_PREDICTOR: predictor,
-        }
 
     @pytest.fixture
     def data_buffers(self):
