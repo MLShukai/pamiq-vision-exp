@@ -17,7 +17,8 @@ class ImageEnvironment(Environment[Tensor, Any]):
         image_generator: Callable[[], Tensor],
         size: size_2d | None = None,
         standardize: bool = True,
-        dtype: torch.dtype = torch.float32,
+        dtype: torch.dtype | None = None,
+        device: torch.device | None = None,
     ) -> None:
         """Initialize the ImageEnvironment.
 
@@ -36,6 +37,7 @@ class ImageEnvironment(Environment[Tensor, Any]):
             self._size = None
         self._standardize = standardize
         self._dtype = dtype
+        self._device = device
 
     @override
     def observe(self) -> Tensor:
@@ -53,7 +55,7 @@ class ImageEnvironment(Environment[Tensor, Any]):
                 f"Generated image must have 3 dimensions [C, H, W], got shape {image.shape}"
             )
 
-        image = image.type(self._dtype)
+        image = image.to(self._device, self._dtype)
         if self._size is not None:
             image = F.resize(image, self._size)
 
