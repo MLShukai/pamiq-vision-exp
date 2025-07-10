@@ -15,7 +15,7 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader, TensorDataset, default_collate
 
 from exp.aim_utils import get_global_run
-from exp.data import BufferNames, DataKeys
+from exp.buffers import BufferNames, DataKeys
 from exp.models import ModelNames
 from exp.models.jepa import Encoder, Predictor
 from exp.utils import size_2d, size_2d_to_int_tuple
