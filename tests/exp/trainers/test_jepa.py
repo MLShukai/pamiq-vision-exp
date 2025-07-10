@@ -10,7 +10,7 @@ from pytest_mock import MockerFixture
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
-from exp.data import BufferNames
+from exp.buffers import BufferNames
 from exp.models.jepa import create_image_jepa
 from exp.trainers.jepa import JEPATrainer, MultiBlockMaskCollator
 from tests.helpers import parametrize_device

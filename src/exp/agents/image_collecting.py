@@ -3,7 +3,7 @@ from typing import override
 from pamiq_core import Agent
 from torch import Tensor
 
-from exp.buffers import BufferNames, DataKeys
+from exp.buffers import BufferNames
 
 
 class ImageCollectingAgent(Agent[Tensor, None]):
@@ -22,5 +22,5 @@ class ImageCollectingAgent(Agent[Tensor, None]):
         Args:
             observation: Image tensor to collect
         """
-        self.collector.collect({DataKeys.IMAGE: observation})
+        self.collector.collect(observation)
         return
