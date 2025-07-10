@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
     make \
+    build-essential \
     libopencv-dev \
     bash-completion \
     tmux \
