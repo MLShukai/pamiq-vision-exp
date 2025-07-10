@@ -8,7 +8,7 @@ PROJECT_ROOT = rootutils.setup_root(
 )
 
 
-@hydra.main("../configs", "train.yaml", version_base="1.3")
+@hydra.main("./configs", "train.yaml", version_base="1.3")
 def main(cfg: DictConfig) -> None:
     pass
 
