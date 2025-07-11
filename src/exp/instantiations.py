@@ -7,6 +7,8 @@ from omegaconf import DictConfig
 from pamiq_core import DataBuffer, Interaction
 from pamiq_core.torch import TorchTrainer, TorchTrainingModel
 
+from .utils import get_class_module_path
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,17 +21,11 @@ def instantiate_models(cfg: DictConfig) -> dict[str, TorchTrainingModel[Any]]:
     logger.info("Instantiating Models...")
     device, dtype = cfg.shared.device, cfg.shared.dtype
 
-    models_cfg = cfg.models
-
-    models: dict[str, nn.Module]
-    if "_target_" in models_cfg:
-        logger.info(f"Instantiating models: <{models_cfg._target_}>")
-        models = hydra.utils.instantiate(models_cfg)
-    else:
-        models = {}
-        for k, v in models_cfg.items():
-            logger.info(f"Instantiating model '{k}': <{v._target_}>")
-            models[str(k)] = hydra.utils.instantiate(v)
+    models: dict[str, nn.Module] = hydra.utils.instantiate(cfg.models)
+    for k, v in models.items():
+        logger.info(
+            f"Instantiated Model '{k}' at <{get_class_module_path(v.__class__)}>"
+        )
 
     return {
         k: TorchTrainingModel(v, has_inference_model=False, device=device, dtype=dtype)
@@ -40,18 +36,21 @@ def instantiate_models(cfg: DictConfig) -> dict[str, TorchTrainingModel[Any]]:
 def instantiate_trainers(cfg: DictConfig) -> dict[str, TorchTrainer]:
     logger.info("Instantiating Trainers...")
 
-    trainers_dict: dict[str, TorchTrainer] = {}
-    for name, trainer_cfg in cfg.trainers.items():
-        logger.info(f"Instantiating Trainer: '{name}': <{trainer_cfg._target_}>")
-        trainers_dict[name] = hydra.utils.instantiate(trainer_cfg)
+    trainers_dict: dict[str, TorchTrainer] = hydra.utils.instantiate(cfg.trainers)
+
+    for k, v in trainers_dict.items():
+        logger.info(
+            f"Instantiated Trainer '{k}' at <{get_class_module_path(v.__class__)}>"
+        )
 
     return trainers_dict
 
 
 def instantiate_buffers(cfg: DictConfig) -> dict[str, DataBuffer[Any, Any]]:
     logger.info("Instantiating DataBuffers...")
-    buffers_dict: dict[str, DataBuffer[Any, Any]] = {}
-    for name, buffer_cfg in cfg.buffers.items():
-        logger.info(f"Instantiating DataBuffer: '{name}': <{buffer_cfg._target_}>")
-        buffers_dict[str(name)] = hydra.utils.instantiate(buffer_cfg)
+    buffers_dict: dict[str, DataBuffer[Any, Any]] = hydra.utils.instantiate(cfg.buffers)
+    for k, v in buffers_dict.items():
+        logger.info(
+            f"Instantiated Buffer '{k}' at <{get_class_module_path(v.__class__)}>"
+        )
     return buffers_dict
