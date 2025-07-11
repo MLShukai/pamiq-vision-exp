@@ -11,8 +11,8 @@ defaults:
 # You can specify `hydra.job_logging.root.level`
 log_level: INFO
 
-# Task name of job.
-task_name: ???
+# Experient name of job.
+experiment_name: default
 
-# Tag list of mlflow.
-task_tags: []
+# Tag list of aim.
+tags: []

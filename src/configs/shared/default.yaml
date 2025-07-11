@@ -3,3 +3,6 @@ video:
   width: 144
   channels: 3
   fps: 10
+
+device: "cuda:0"
+dtype: "bfloat16"
