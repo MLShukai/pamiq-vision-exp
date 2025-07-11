@@ -1,8 +1,8 @@
-video:
-  height: 144
-  width: 144
+image:
+  height: 32
+  width: 32
   channels: 3
-  fps: 10
+fps: 10
 
 device: "cuda:0"
 dtype: "bfloat16"

@@ -5,8 +5,11 @@
 defaults:
   - _self_
 
+  - interaction: default
+
   - paths: default
   - hydra: default
+  - shared: default
 
 # You can specify `hydra.job_logging.root.level`
 log_level: INFO
