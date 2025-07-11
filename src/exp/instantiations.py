@@ -4,7 +4,7 @@ from typing import Any
 import hydra
 import torch.nn as nn
 from omegaconf import DictConfig
-from pamiq_core import Interaction
+from pamiq_core import DataBuffer, Interaction
 from pamiq_core.torch import TorchTrainer, TorchTrainingModel
 
 logger = logging.getLogger(__name__)
@@ -46,3 +46,12 @@ def instantiate_trainers(cfg: DictConfig) -> dict[str, TorchTrainer]:
         trainers_dict[name] = hydra.utils.instantiate(trainer_cfg)
 
     return trainers_dict
+
+
+def instantiate_buffers(cfg: DictConfig) -> dict[str, DataBuffer[Any, Any]]:
+    logger.info("Instantiating DataBuffers...")
+    buffers_dict: dict[str, DataBuffer[Any, Any]] = {}
+    for name, buffer_cfg in cfg.buffers.items():
+        logger.info(f"Instantiating DataBuffer: '{name}': <{buffer_cfg._target_}>")
+        buffers_dict[str(name)] = hydra.utils.instantiate(buffer_cfg)
+    return buffers_dict

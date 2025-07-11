@@ -8,6 +8,7 @@ defaults:
   - interaction: default
   - models: jepa
   - trainers: jepa
+  - buffers: sequential
 
   - paths: default
   - hydra: default

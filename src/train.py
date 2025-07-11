@@ -9,6 +9,7 @@ from pamiq_core import LaunchConfig, launch
 
 from exp.aim_utils import flatten_config, set_global_run
 from exp.instantiations import (
+    instantiate_buffers,
     instantiate_interaction,
     instantiate_models,
     instantiate_trainers,
@@ -58,6 +59,7 @@ def main(cfg: DictConfig) -> None:
         instantiate_interaction(cfg)
         instantiate_models(cfg)
         instantiate_trainers(cfg)
+        instantiate_buffers(cfg)
 
     finally:
         aim_run.close()
