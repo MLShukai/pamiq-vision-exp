@@ -3,7 +3,7 @@ from typing import override
 from pamiq_core import Agent
 from torch import Tensor
 
-from exp.buffers import BufferNames
+from exp.buffers import BufferName
 
 
 class ImageCollectingAgent(Agent[Tensor, None]):
@@ -13,7 +13,7 @@ class ImageCollectingAgent(Agent[Tensor, None]):
     def on_data_collectors_attached(self) -> None:
         """Set up the image data collector when attached to the agent."""
         super().on_data_collectors_attached()
-        self.collector = self.get_data_collector(BufferNames.IMAGE)
+        self.collector = self.get_data_collector(BufferName.IMAGE)
 
     @override
     def step(self, observation: Tensor) -> None:

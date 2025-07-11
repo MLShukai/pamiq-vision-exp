@@ -1,1 +1,1 @@
-from .names import BufferNames
+from .names import BufferName

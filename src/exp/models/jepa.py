@@ -356,7 +356,7 @@ from pamiq_core.torch import TorchTrainingModel, get_device
 
 from .components.image_patchifier import ImagePatchifier
 from .components.positional_embeddings import get_2d_positional_embeddings
-from .names import ModelNames
+from .names import ModelName
 
 
 def create_image_jepa(
@@ -367,7 +367,7 @@ def create_image_jepa(
     embed_dim: int = 128,
     depth: int = 6,
     num_heads: int = 3,
-) -> dict[ModelNames, nn.Module]:
+) -> dict[ModelName, nn.Module]:
     """Create a complete Image JEPA (Joint Embedding Predictive Architecture)
     model.
 
@@ -427,7 +427,7 @@ def create_image_jepa(
     )
 
     return {
-        ModelNames.JEPA_CONTEXT_ENCODER: context_encoder,
-        ModelNames.JEPA_TARGET_ENCODER: target_encoder,
-        ModelNames.JEPA_PREDICTOR: predictor,
+        ModelName.JEPA_CONTEXT_ENCODER: context_encoder,
+        ModelName.JEPA_TARGET_ENCODER: target_encoder,
+        ModelName.JEPA_PREDICTOR: predictor,
     }

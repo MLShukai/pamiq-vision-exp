@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from exp.models import ModelNames
+from exp.models import ModelName
 from exp.models.components.image_patchifier import ImagePatchifier
 from exp.models.components.positional_embeddings import get_2d_positional_embeddings
 from exp.models.jepa import Encoder, LightWeightDecoder, Predictor, create_image_jepa
@@ -460,19 +460,19 @@ class TestCreateImageJEPA:
         )
 
         # Check object types
-        assert isinstance(models[ModelNames.JEPA_CONTEXT_ENCODER], Encoder)
-        assert isinstance(models[ModelNames.JEPA_TARGET_ENCODER], Encoder)
-        assert isinstance(models[ModelNames.JEPA_PREDICTOR], Predictor)
+        assert isinstance(models[ModelName.JEPA_CONTEXT_ENCODER], Encoder)
+        assert isinstance(models[ModelName.JEPA_TARGET_ENCODER], Encoder)
+        assert isinstance(models[ModelName.JEPA_PREDICTOR], Predictor)
 
         # Check that target encoder is a separate instance (cloned)
         assert (
-            models[ModelNames.JEPA_CONTEXT_ENCODER]
-            is not models[ModelNames.JEPA_TARGET_ENCODER]
+            models[ModelName.JEPA_CONTEXT_ENCODER]
+            is not models[ModelName.JEPA_TARGET_ENCODER]
         )
 
         # Check that parameters are initially identical (cloned properly)
         for ctx_param, tgt_param in zip(
-            models[ModelNames.JEPA_CONTEXT_ENCODER].parameters(),
-            models[ModelNames.JEPA_TARGET_ENCODER].parameters(),
+            models[ModelName.JEPA_CONTEXT_ENCODER].parameters(),
+            models[ModelName.JEPA_TARGET_ENCODER].parameters(),
         ):
             assert torch.equal(ctx_param, tgt_param)

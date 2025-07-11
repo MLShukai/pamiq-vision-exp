@@ -70,10 +70,10 @@ from exp.types import size_2d  # Tuple[int, int] for image/patch sizes
 String enums define constants:
 
 ```python
-class BufferNames(StrEnum):
+class BufferName(StrEnum):
     OBSERVATION = "observation"
 
-class ModelNames(StrEnum):
+class ModelName(StrEnum):
     CONTEXT_ENCODER = "context_encoder"
 ```
 

@@ -1,7 +1,7 @@
 from enum import StrEnum, auto
 
 
-class BufferNames(StrEnum):
+class BufferName(StrEnum):
     """Enumerates all buffer names in the experiments."""
 
     IMAGE = auto()

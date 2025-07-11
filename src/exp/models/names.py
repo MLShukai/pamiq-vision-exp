@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class ModelNames(StrEnum):
+class ModelName(StrEnum):
     """Enumerates all model names in experiments."""
 
     JEPA_CONTEXT_ENCODER = "jepa_context_encoder"
