@@ -5,9 +5,8 @@ Architecture (JEPA) model.
 """
 
 import copy
-import math
 from collections.abc import Callable
-from typing import Any, Literal, Self, override
+from typing import Self, override
 
 import torch
 import torch.nn as nn
