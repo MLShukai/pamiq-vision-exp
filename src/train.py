@@ -8,7 +8,11 @@ from omegaconf import DictConfig, OmegaConf
 from pamiq_core import LaunchConfig, launch
 
 from exp.aim_utils import flatten_config, set_global_run
-from exp.instantiations import instantiate_interaction, instantiate_models
+from exp.instantiations import (
+    instantiate_interaction,
+    instantiate_models,
+    instantiate_trainers,
+)
 from exp.oc_resolvers import register_custom_resolvers
 
 register_custom_resolvers()
@@ -53,6 +57,7 @@ def main(cfg: DictConfig) -> None:
 
         instantiate_interaction(cfg)
         instantiate_models(cfg)
+        instantiate_trainers(cfg)
 
     finally:
         aim_run.close()
