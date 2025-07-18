@@ -10,6 +10,8 @@ defaults:
   - trainers: jepa
   - buffers: sequential
 
+  - launch: default
+
   - paths: default
   - hydra: default
   - shared: default

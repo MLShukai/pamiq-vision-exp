@@ -5,7 +5,7 @@ import aim
 import hydra
 import rootutils
 from omegaconf import DictConfig, OmegaConf
-from pamiq_core import LaunchConfig, launch
+from pamiq_core import launch
 
 from exp.aim_utils import flatten_config, set_global_run
 from exp.instantiations import (
@@ -56,10 +56,13 @@ def main(cfg: DictConfig) -> None:
     try:
         log_config(cfg_view, aim_run)
 
-        instantiate_interaction(cfg)
-        instantiate_models(cfg)
-        instantiate_trainers(cfg)
-        instantiate_buffers(cfg)
+        launch(
+            interaction=instantiate_interaction(cfg),
+            models=instantiate_models(cfg),
+            buffers=instantiate_buffers(cfg),
+            trainers=instantiate_trainers(cfg),
+            config=hydra.utils.instantiate(cfg.launch),
+        )
 
     finally:
         aim_run.close()
