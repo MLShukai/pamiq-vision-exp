@@ -16,6 +16,9 @@ defaults:
   - hydra: default
   - shared: default
 
+  # experiment configs allow for version control of specific hyperparameters
+  - experiment: null
+
 # You can specify `hydra.job_logging.root.level`
 log_level: INFO
 

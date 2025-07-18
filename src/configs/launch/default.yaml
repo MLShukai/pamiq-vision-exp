@@ -7,4 +7,4 @@ save_state_condition:
 
 time_scale: 1.0
 web_api_address: null # disable web api.
-max_uptime: ${python.eval:"${.save_state_condition.interval} * 3"} # 3 times
+max_uptime: ${python.eval:"50000 / ${shared.fps} * 3"} # 3 epoch.
