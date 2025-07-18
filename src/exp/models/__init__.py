@@ -1,1 +1,1 @@
-from .names import ModelNames
+from .names import ModelName

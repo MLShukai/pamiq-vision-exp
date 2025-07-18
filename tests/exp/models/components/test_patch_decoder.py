@@ -7,9 +7,9 @@ from exp.models.components.patch_decoder import PatchDecoder
 
 class TestPatchDecoder:
     @pytest.mark.parametrize("batch_size", [1, 4])
-    @pytest.mark.parametrize("img_size", [224, 384])
-    @pytest.mark.parametrize("patch_size", [16, 32])
-    @pytest.mark.parametrize("embed_dim", [768])
+    @pytest.mark.parametrize("img_size", [64, 96])
+    @pytest.mark.parametrize("patch_size", [32, 16])
+    @pytest.mark.parametrize("embed_dim", [32])
     def test_forward(self, batch_size, img_size, patch_size, embed_dim):
         """Test forward pass of the PatchDecoder."""
         n_patches_1d = img_size // patch_size
@@ -34,7 +34,7 @@ class TestPatchDecoder:
     @pytest.mark.parametrize("batch_size", [2])
     @pytest.mark.parametrize("img_size", [224])
     @pytest.mark.parametrize("patch_size", [16])
-    @pytest.mark.parametrize("embed_dim", [768])
+    @pytest.mark.parametrize("embed_dim", [32])
     def test_embedding_decoding_cycle(
         self, batch_size, img_size, patch_size, embed_dim
     ):

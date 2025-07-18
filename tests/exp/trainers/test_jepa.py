@@ -8,11 +8,13 @@ from pamiq_core.testing import connect_components
 from pamiq_core.torch import TorchTrainingModel
 from pytest_mock import MockerFixture
 from torch.optim import AdamW
-from torch.utils.data import DataLoader
 
-from exp.data import BufferNames
+from exp.buffers import BufferName
 from exp.models.jepa import create_image_jepa
-from exp.trainers.jepa import JEPATrainer, MultiBlockMaskCollator
+from exp.trainers.jepa import (
+    JEPATrainer,
+    MultiBlockMaskCollator2d,
+)
 from tests.helpers import parametrize_device
 
 
@@ -21,35 +23,24 @@ class TestJEPATrainer:
     PATCH_SIZE = 8
     CHANNELS = 3
     EMBED_DIM = 16
+    HIDDEN_DIM = 128
     N_PATCHES = IMAGE_SIZE // PATCH_SIZE
 
     @pytest.fixture
     def models(self):
         return create_image_jepa(
-            self.IMAGE_SIZE,
-            self.PATCH_SIZE,
+            image_size=self.IMAGE_SIZE,
+            patch_size=self.PATCH_SIZE,
             in_channels=self.CHANNELS,
-            hidden_dim=128,
+            hidden_dim=self.HIDDEN_DIM,
             embed_dim=self.EMBED_DIM,
-            num_heads=2,
             depth=1,
+            num_heads=2,
         )
 
     @pytest.fixture
     def data_buffers(self):
-        return {BufferNames.IMAGE: RandomReplacementBuffer(max_size=16)}
-
-    @pytest.fixture
-    def partial_dataloader(self):
-        return partial(
-            DataLoader,
-            batch_size=2,
-            shuffle=True,
-            collate_fn=MultiBlockMaskCollator(
-                input_size=self.IMAGE_SIZE,
-                patch_size=self.PATCH_SIZE,
-            ),
-        )
+        return {BufferName.IMAGE: RandomReplacementBuffer(max_size=16)}
 
     @pytest.fixture
     def partial_optimizer(self):
@@ -57,11 +48,18 @@ class TestJEPATrainer:
         return partial_optimizer
 
     @pytest.fixture
-    def trainer(self, partial_dataloader, partial_optimizer, mocker: MockerFixture):
+    def collate_fn(self) -> MultiBlockMaskCollator2d:
+        return MultiBlockMaskCollator2d(
+            num_patches=self.N_PATCHES,
+        )
+
+    @pytest.fixture
+    def trainer(self, partial_optimizer, collate_fn, mocker: MockerFixture):
         mocker.patch("exp.trainers.jepa.get_global_run")
         return JEPATrainer(
-            partial_dataloader,
             partial_optimizer,
+            collate_fn=collate_fn,
+            batch_size=2,
             min_buffer_size=4,
             min_new_data_count=2,
         )
@@ -77,7 +75,7 @@ class TestJEPATrainer:
         components = connect_components(
             trainers=trainer, buffers=data_buffers, models=models
         )
-        collector = components.data_collectors[BufferNames.IMAGE]
+        collector = components.data_collectors[BufferName.IMAGE]
         for _ in range(10):
             collector.collect(
                 torch.randn(self.CHANNELS, self.IMAGE_SIZE, self.IMAGE_SIZE)
@@ -101,7 +99,7 @@ class TestJEPATrainer:
         assert trainer.global_step == global_step
 
 
-class TestMultiBlockMaskCollator:
+class TestMultiBlockMaskCollator2d:
     @pytest.mark.parametrize("image_size", [224])
     @pytest.mark.parametrize("patch_size", [16])
     @pytest.mark.parametrize("min_keep", [10])
@@ -109,9 +107,8 @@ class TestMultiBlockMaskCollator:
     def test_sample_mask_rectangle(self, image_size, patch_size, min_keep, mask_scale):
         """Test that the sampled mask rectangle has valid dimensions and
         follows constraints."""
-        collator = MultiBlockMaskCollator(
-            input_size=image_size,
-            patch_size=patch_size,
+        collator = MultiBlockMaskCollator2d(
+            num_patches=image_size // patch_size,
             mask_scale=mask_scale,
             min_keep=min_keep,
         )
@@ -156,9 +153,8 @@ class TestMultiBlockMaskCollator:
         assert image_size % patch_size == 0
 
         # Initialize collator
-        collator = MultiBlockMaskCollator(
-            input_size=(image_size, image_size),
-            patch_size=(patch_size, patch_size),
+        collator = MultiBlockMaskCollator2d(
+            num_patches=(image_size // patch_size, image_size // patch_size),
             n_masks=n_masks,
             min_keep=50,
         )
@@ -227,9 +223,8 @@ class TestMultiBlockMaskCollator:
         """Test the sample_masks_and_target method for correct output shapes
         and properties."""
         image_size, patch_size = 224, 16
-        collator = MultiBlockMaskCollator(
-            input_size=(image_size, image_size),
-            patch_size=(patch_size, patch_size),
+        collator = MultiBlockMaskCollator2d(
+            num_patches=(image_size // patch_size, image_size // patch_size),
             n_masks=4,
             min_keep=50,
         )
@@ -259,9 +254,8 @@ class TestMultiBlockMaskCollator:
     def test_n_patches_property(self):
         """Test that the n_patches property returns the correct value."""
         image_size, patch_size = 224, 16
-        collator = MultiBlockMaskCollator(
-            input_size=(image_size, image_size),
-            patch_size=(patch_size, patch_size),
+        collator = MultiBlockMaskCollator2d(
+            num_patches=(image_size // patch_size, image_size // patch_size),
         )
 
         expected_patches = (image_size // patch_size) ** 2
@@ -269,9 +263,8 @@ class TestMultiBlockMaskCollator:
 
     def test_step_method(self):
         """Test that the step method increments the counter properly."""
-        collator = MultiBlockMaskCollator(
-            input_size=224,
-            patch_size=16,
+        collator = MultiBlockMaskCollator2d(
+            num_patches=224 // 16,
         )
 
         # Get initial value
@@ -280,21 +273,6 @@ class TestMultiBlockMaskCollator:
         # Check that step increments
         assert collator.step() == initial_value + 1
         assert collator.step() == initial_value + 2
-
-    @pytest.mark.parametrize(
-        "input_size,patch_size,expected_error",
-        [
-            (223, 16, "Input height 223 must be divisible by patch height 16"),
-            (224, 15, "Input height 224 must be divisible by patch height 15"),
-        ],
-    )
-    def test_invalid_dimensions(self, input_size, patch_size, expected_error):
-        """Test error when dimensions are invalid."""
-        with pytest.raises(ValueError, match=expected_error):
-            MultiBlockMaskCollator(
-                input_size=input_size,
-                patch_size=patch_size,
-            )
 
     @pytest.mark.parametrize(
         "mask_scale,expected_error",
@@ -307,9 +285,8 @@ class TestMultiBlockMaskCollator:
     def test_invalid_mask_scale(self, mask_scale, expected_error):
         """Test error when mask_scale is invalid."""
         with pytest.raises(ValueError, match=expected_error):
-            MultiBlockMaskCollator(
-                input_size=224,
-                patch_size=16,
+            MultiBlockMaskCollator2d(
+                num_patches=224 // 16,
                 mask_scale=mask_scale,
             )
 
@@ -318,8 +295,7 @@ class TestMultiBlockMaskCollator:
         with pytest.raises(
             ValueError, match="min_keep .* must be less than or equal to total patches"
         ):
-            MultiBlockMaskCollator(
-                input_size=224,
-                patch_size=16,
+            MultiBlockMaskCollator2d(
+                num_patches=224 // 16,
                 min_keep=1000,  # Much larger than available patches
             )

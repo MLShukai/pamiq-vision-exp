@@ -1,0 +1,10 @@
+_target_: pamiq_core.LaunchConfig
+states_dir: ${paths.states_dir}
+
+save_state_condition:
+  _target_: pamiq_core.state_persistence.PeriodicSaveCondition
+  interval: ${python.eval:"50000 / ${shared.fps}"} # 1 epoch of CIFAR100.
+
+time_scale: 1.0
+web_api_address: null # disable web api.
+max_uptime: ${python.eval:"50000 / ${shared.fps} * 3"} # 3 epoch.

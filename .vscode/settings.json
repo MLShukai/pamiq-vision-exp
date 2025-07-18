@@ -5,5 +5,5 @@
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
-    "pythonHydraYaml.configDir": "/workspace/configs"
+    "pythonHydraYaml.configDir": "/workspace/src/configs"
 }

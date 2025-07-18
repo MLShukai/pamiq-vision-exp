@@ -3,7 +3,7 @@ import torch
 from pamiq_core import DataCollector
 from pytest_mock import MockerFixture
 
-from exp.agents.image_collecting import DataKeys, ImageCollectingAgent
+from exp.agents.image_collecting import ImageCollectingAgent
 
 
 class TestImageCollectingAgent:
@@ -27,6 +27,4 @@ class TestImageCollectingAgent:
 
         mock_collector.collect.assert_called_once()
         arg = mock_collector.collect.call_args.args[0]
-        assert isinstance(arg, dict)
-        assert DataKeys.IMAGE in arg
-        assert torch.equal(image, arg[DataKeys.IMAGE])
+        assert torch.equal(image, arg)

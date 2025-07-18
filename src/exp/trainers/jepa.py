@@ -1,6 +1,7 @@
 import itertools
 import math
 import random
+from collections.abc import Callable
 from functools import partial
 from multiprocessing import Value
 from pathlib import Path
@@ -9,14 +10,15 @@ from typing import override
 import torch
 import torch.nn.functional as F
 from pamiq_core import DataUser
+from pamiq_core.data.impls import RandomReplacementBuffer
 from pamiq_core.torch import OptimizersSetup, TorchTrainer, get_device
 from torch import Tensor
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader, TensorDataset, default_collate
 
 from exp.aim_utils import get_global_run
-from exp.data import BufferNames, DataKeys
-from exp.models import ModelNames
+from exp.buffers import BufferName
+from exp.models import ModelName
 from exp.models.jepa import Encoder, Predictor
 from exp.utils import size_2d, size_2d_to_int_tuple
 
@@ -24,7 +26,7 @@ OPTIMIZER_NAME = "optimizer"
 
 
 class JEPATrainer(TorchTrainer):
-    """Trainer for Joint Embedding Predictive Architecture (JEPA).
+    """Trainer for Joint Embedding Predictive Architecture (I-JEPA).
 
     This trainer implements the JEPA training process which involves:
     1. A context encoder that encodes patches with some masked areas
@@ -39,26 +41,38 @@ class JEPATrainer(TorchTrainer):
     @override
     def __init__(
         self,
-        partial_dataloader: partial[DataLoader[Tensor]],
         partial_optimizer: partial[Optimizer],
+        collate_fn: Callable[[list[tuple[Tensor]]], tuple[Tensor, Tensor, Tensor]],
+        context_encoder_name: str = ModelName.JEPA_CONTEXT_ENCODER,
+        target_encoder_name: str = ModelName.JEPA_TARGET_ENCODER,
+        predictor_name: str = ModelName.JEPA_PREDICTOR,
+        data_user_name: str = BufferName.IMAGE,
+        log_prefix: str = "image-jepa",
         target_encoder_update_moving_average: float = 0.996,  # based on the original I-JEPA initinal setting.
+        batch_size: int = 1,
         max_epochs: int = 1,
-        data_user_name: str = BufferNames.IMAGE,
         min_buffer_size: int = 0,
         min_new_data_count: int = 0,
     ) -> None:
         """Initialize the JEPA trainer.
 
         Args:
-            partial_dataloader: Partially configured DataLoader to be used with
-                dynamically created datasets during training.
             partial_optimizer: Partially configured optimizer to be used with
                 the model parameters.
+            context_encoder_name: Name of the context encoder model to retrieve
+                from the model registry.
+            target_encoder_name: Name of the target encoder model to retrieve
+                from the model registry.
+            predictor_name: Name of the predictor model to retrieve from the
+                model registry.
+            data_user_name: Name of the data user providing training data.
+            collate_fn: Collator function for sampling input data, encoder mask and predictor target.
+            log_prefix: Prefix for training metrics in Aim logging.
             target_encoder_update_moving_average: Momentum coefficient for updating
                 the target encoder from the context encoder (higher values mean
                 slower updates, default: 0.996 based on original I-JEPA).
+            batch_size: Data sample size for 1 step.
             max_epochs: Maximum number of epochs to train per training session.
-            data_user_name: Name of the data user providing training data.
             min_buffer_size: Minimum buffer size required before training starts.
             min_new_data_count: Minimum number of new data points required for training.
         """
@@ -66,7 +80,17 @@ class JEPATrainer(TorchTrainer):
 
         self.data_user_name = data_user_name
         self.partial_optimizer = partial_optimizer
-        self.partial_dataloader = partial_dataloader
+        self.partial_dataloader = partial(
+            DataLoader,
+            batch_size=batch_size,
+            shuffle=True,
+            drop_last=True,
+            collate_fn=collate_fn,
+        )
+        self.context_encoder_name = context_encoder_name
+        self.target_encoder_name = target_encoder_name
+        self.predictor_name = predictor_name
+        self.log_prefix = log_prefix
         self.target_encoder_update_moving_average = target_encoder_update_moving_average
         self.max_epochs = max_epochs
         self.global_step = 0
@@ -81,9 +105,7 @@ class JEPATrainer(TorchTrainer):
         during training.
         """
         super().on_data_users_attached()
-        self.image_data_user: DataUser[list[Tensor]] = self.get_data_user(
-            self.data_user_name
-        )
+        self.data_user: DataUser[list[Tensor]] = self.get_data_user(self.data_user_name)
 
     @override
     def on_training_models_attached(self) -> None:
@@ -96,14 +118,12 @@ class JEPATrainer(TorchTrainer):
         """
         super().on_training_models_attached()
         self.context_encoder = self.get_torch_training_model(
-            ModelNames.JEPA_CONTEXT_ENCODER, Encoder
+            self.context_encoder_name, Encoder
         )
         self.target_encoder = self.get_torch_training_model(
-            ModelNames.JEPA_TARGET_ENCODER, Encoder
+            self.target_encoder_name, Encoder
         )
-        self.predictor = self.get_torch_training_model(
-            ModelNames.JEPA_PREDICTOR, Predictor
-        )
+        self.predictor = self.get_torch_training_model(self.predictor_name, Predictor)
 
     @override
     def create_optimizers(self) -> OptimizersSetup:
@@ -130,10 +150,10 @@ class JEPATrainer(TorchTrainer):
         """Execute JEPA training process.
 
         This method implements the core JEPA training loop:
-        1. Creates a dataset and dataloader from the collected images
+        1. Creates a dataset and dataloader from the collected data
         2. For each batch:
-           - Encodes images with the target encoder (without gradients)
-           - Encodes masked images with the context encoder
+           - Encodes data with the target encoder (without gradients)
+           - Encodes masked data with the context encoder
            - Uses the predictor to predict target patches from context
            - Computes smooth L1 loss between predictions and target representations
            - Updates context encoder and predictor parameters via backpropagation
@@ -142,25 +162,22 @@ class JEPATrainer(TorchTrainer):
         The target encoder serves as a momentum-updated teacher model that provides
         stable targets for the context encoder and predictor to learn from.
         """
-        dataset = TensorDataset(torch.stack(self.image_data_user.get_data()))
+        dataset = TensorDataset(torch.stack(self.data_user.get_data()))
         dataloader = self.partial_dataloader(dataset=dataset)
         device = get_device(self.context_encoder.model)
 
         for _ in range(self.max_epochs):
             batch: tuple[Tensor, Tensor, Tensor]
             for batch in dataloader:
-                (image_batch, masks_for_context_encoder, targets_for_predictor) = batch
-                image_batch = image_batch.to(device)
+                (data, masks_for_context_encoder, targets_for_predictor) = batch
+                data = data.to(device)
                 masks_for_context_encoder = masks_for_context_encoder.to(device)
                 targets_for_predictor = targets_for_predictor.to(device)
 
                 self.optimizers[OPTIMIZER_NAME].zero_grad()
-
                 # target encoder
                 with torch.no_grad():
-                    latent_from_target_encoder: Tensor = self.target_encoder(
-                        image_batch
-                    )
+                    latent_from_target_encoder: Tensor = self.target_encoder(data)
                     # normalize over feature-dim
                     latent_from_target_encoder = F.layer_norm(
                         latent_from_target_encoder,
@@ -169,7 +186,7 @@ class JEPATrainer(TorchTrainer):
 
                 # context encoder
                 latent_from_context_encoder = self.context_encoder(
-                    image_batch, masks_for_context_encoder
+                    data, masks_for_context_encoder
                 )
 
                 # predictor
@@ -214,13 +231,13 @@ class JEPATrainer(TorchTrainer):
                 }
                 # logging
                 if run := get_global_run():
-                    for k, v in metrics.items():
+                    for tag, value in metrics.items():
                         run.track(
-                            v,
-                            f"jepa/{k}",
-                            self.global_step,
-                            context={"trainer": "jepa"},
+                            value,
+                            name=f"{self.log_prefix}/{tag}",
+                            step=self.global_step,
                         )
+
                 self.global_step += 1
 
     @override
@@ -236,24 +253,33 @@ class JEPATrainer(TorchTrainer):
         super().load_state(path)
         self.global_step = int((path / "global_step").read_text("utf-8"))
 
+    @staticmethod
+    def create_buffer(
+        batch_size: int,
+        iteration_count: int,
+        expected_survival_length: int,
+    ) -> RandomReplacementBuffer[Tensor]:
+        """Create data buffer for this trainer."""
+        return RandomReplacementBuffer[Tensor](
+            max_size=iteration_count * batch_size,
+            expected_survival_length=expected_survival_length,
+        )
 
-class MultiBlockMaskCollator:
-    """I-JEPA collator function for providing boolean mask tensors.
+
+class MultiBlockMaskCollator2d:
+    """JEPA collator function for providing boolean mask tensors.
 
     This collator creates boolean masks for both the context encoder and predictor target.
-    It's designed to work with the I-JEPA (Image Joint Embedding Predictive Architecture) model.
+    It's designed to work with the Image-JEPA (Image Joint Embedding Predictive Architecture) model.
 
     The masks are boolean tensors where:
     - True values indicate patches to be masked (ignored)
     - False values indicate patches to be processed or predicted
-
-    This differs from IJEPAMaskCollator which uses integer indices for masked patches.
     """
 
     def __init__(
         self,
-        input_size: size_2d,
-        patch_size: size_2d,
+        num_patches: size_2d,
         mask_scale: tuple[float, float] = (0.10, 0.25),
         n_masks: int = 4,
         aspect_ratio: tuple[float, float] = (0.75, 1.5),
@@ -263,7 +289,7 @@ class MultiBlockMaskCollator:
 
         Args:
             input_size: Size of the input image.
-            patch_size: Size of each patch.
+            num_patches: Height and width for patched image.
             mask_scale: Range of mask scale (min, max).
             n_masks: Number of mask candidates to generate.
             aspect_ratio: Range of aspect ratios for masks.
@@ -277,20 +303,10 @@ class MultiBlockMaskCollator:
         if mask_scale[1] > 1:
             raise ValueError("mask_scale[1] must be less than 1")
 
-        input_size = size_2d_to_int_tuple(input_size)
-        self.patch_size = size_2d_to_int_tuple(patch_size)
+        num_patches = size_2d_to_int_tuple(num_patches)
 
-        if input_size[0] % self.patch_size[0] != 0:
-            raise ValueError(
-                f"Input height {input_size[0]} must be divisible by patch height {self.patch_size[0]}"
-            )
-        if input_size[1] % self.patch_size[1] != 0:
-            raise ValueError(
-                f"Input width {input_size[1]} must be divisible by patch width {self.patch_size[1]}"
-            )
-
-        self.n_patches_height = input_size[0] // self.patch_size[0]
-        self.n_patches_width = input_size[1] // self.patch_size[1]
+        self.n_patches_height = num_patches[0]
+        self.n_patches_width = num_patches[1]
 
         if min_keep > self.n_patches:
             raise ValueError(

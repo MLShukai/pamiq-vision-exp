@@ -1,0 +1,9 @@
+image:
+  height: 32
+  width: 32
+  channels: 3
+  patch_size: 4
+fps: 10
+
+device: "cuda:0"
+dtype: "bfloat16"

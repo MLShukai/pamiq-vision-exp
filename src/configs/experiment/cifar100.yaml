@@ -1,0 +1,21 @@
+# @package _global_
+
+defaults:
+  - override /interaction/image_generator: cifar100
+
+shared:
+  image:
+    height: 32
+    width: 32
+    channels: 3
+    patch_size: 4
+
+launch:
+  save_state_condition:
+    interval: ${python.eval:"50000 / ${shared.fps} / 2"} # 1/2 epoch of CIFAR100.
+
+experiment_name: cifar100
+
+tags:
+  - cifar100
+  - jepa

@@ -5,6 +5,12 @@ ci:
   autoupdate_commit_msg: "chore: update pre-commit hooks"
   autofix_commit_msg: "style: pre-commit fixes"
 
+exclude: |
+    (?x)(
+        ^data/|
+        ^logs/
+    )
+
 repos:
   # Basic file checks and formatting
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -18,6 +24,7 @@ repos:
       - id: debug-statements
       - id: detect-private-key
       - id: check-executables-have-shebangs
+
       - id: check-case-conflict
       - id: check-added-large-files
       - id: check-merge-conflict
