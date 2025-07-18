@@ -54,7 +54,7 @@ def main(cfg: DictConfig) -> None:
     set_global_run(aim_run)
 
     try:
-        # log_config(cfg_view, aim_run)
+        log_config(cfg_view, aim_run)
 
         instantiate_interaction(cfg)
         instantiate_models(cfg)
