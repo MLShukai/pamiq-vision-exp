@@ -145,6 +145,54 @@ class JEPATrainer(TorchTrainer):
             )
         }
 
+    def _compute_loss(
+        self,
+        images: torch.Tensor,
+        masks_for_context_encoder: torch.Tensor,
+        targets_for_predictor: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Compute loss for I-JEPA.
+
+        Args:
+            images: Collated images (shape: [batch_size, 3, height, width])
+            masks_for_context_encoder: Boolean masks for context encoder (shape: [batch_size, n_patches])
+            targets_for_predictor: Boolean masks representing predictor targets (shape: [batch_size, n_patches])
+
+        Returns:
+            1. Loss (shape: [])
+            2. Latents from target encoder (shape: [batch_size, n_patches, embed_dim])
+            3. Latents from context encoder (shape: [batch_size, n_patches, embed_dim])
+        """
+        # target encoder
+        with torch.no_grad():
+            latent_from_target_encoder: Tensor = self.target_encoder(images)
+            # normalize over feature-dim
+            latent_from_target_encoder = F.layer_norm(
+                latent_from_target_encoder,
+                (latent_from_target_encoder.size(-1),),
+            )
+
+        # context encoder
+        latent_from_context_encoder = self.context_encoder(
+            images, masks_for_context_encoder
+        )
+
+        # predictor
+        latent_from_predictor = self.predictor(
+            latent_from_context_encoder, targets_for_predictor
+        )
+
+        # Element wise smooth l1 loss for masking.
+        losses = F.smooth_l1_loss(
+            latent_from_predictor, latent_from_target_encoder, reduction="none"
+        ).mean(-1)
+        # shape: [batch, n_patches]
+
+        # Ignore patches that are not selected for prediction.
+        losses = torch.masked_fill(losses, ~targets_for_predictor, 0.0)
+        loss = losses.sum() / targets_for_predictor.sum()
+        return loss, latent_from_target_encoder, latent_from_context_encoder
+
     @override
     def train(self) -> None:
         """Execute JEPA training process.
@@ -169,40 +217,17 @@ class JEPATrainer(TorchTrainer):
         for _ in range(self.max_epochs):
             batch: tuple[Tensor, Tensor, Tensor]
             for batch in dataloader:
-                (data, masks_for_context_encoder, targets_for_predictor) = batch
-                data = data.to(device)
+                (images, masks_for_context_encoder, targets_for_predictor) = batch
+                images = images.to(device)
                 masks_for_context_encoder = masks_for_context_encoder.to(device)
                 targets_for_predictor = targets_for_predictor.to(device)
 
                 self.optimizers[OPTIMIZER_NAME].zero_grad()
-                # target encoder
-                with torch.no_grad():
-                    latent_from_target_encoder: Tensor = self.target_encoder(data)
-                    # normalize over feature-dim
-                    latent_from_target_encoder = F.layer_norm(
-                        latent_from_target_encoder,
-                        (latent_from_target_encoder.size(-1),),
+                loss, latent_from_target_encoder, latent_from_context_encoder = (
+                    self._compute_loss(
+                        images, masks_for_context_encoder, targets_for_predictor
                     )
-
-                # context encoder
-                latent_from_context_encoder = self.context_encoder(
-                    data, masks_for_context_encoder
                 )
-
-                # predictor
-                latent_from_predictor = self.predictor(
-                    latent_from_context_encoder, targets_for_predictor
-                )
-
-                # Element wise smooth l1 loss for masking.
-                losses = F.smooth_l1_loss(
-                    latent_from_predictor, latent_from_target_encoder, reduction="none"
-                ).mean(-1)
-                # shape: [batch, n_patches]
-
-                # Ignore patches that are not selected for prediction.
-                losses = torch.masked_fill(losses, ~targets_for_predictor, 0.0)
-                loss = losses.sum() / targets_for_predictor.sum()
 
                 loss.backward()
                 self.optimizers[OPTIMIZER_NAME].step()
