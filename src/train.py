@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 logging.captureWarnings(True)
 
 
-@hydra.main("./configs", "train.yaml", version_base="1.3")
+@hydra.main("./configs/train", "train.yaml", version_base="1.3")
 def main(cfg: DictConfig) -> None:
     cfg_view = cfg.copy()
     OmegaConf.resolve(cfg_view)
