@@ -47,7 +47,7 @@ class JEPATrainer(TorchTrainer):
         target_encoder_name: str = ModelName.JEPA_TARGET_ENCODER,
         predictor_name: str = ModelName.JEPA_PREDICTOR,
         data_user_name: str = BufferName.IMAGE,
-        log_prefix: str = "image-jepa",
+        log_prefix: str = "jepa",
         target_encoder_update_moving_average: float = 0.996,  # based on the original I-JEPA initinal setting.
         batch_size: int = 1,
         max_epochs: int = 1,
@@ -234,8 +234,9 @@ class JEPATrainer(TorchTrainer):
                     for tag, value in metrics.items():
                         run.track(
                             value,
-                            name=f"{self.log_prefix}/{tag}",
+                            name=tag,
                             step=self.global_step,
+                            context={"trainer": self.log_prefix},
                         )
 
                 self.global_step += 1
