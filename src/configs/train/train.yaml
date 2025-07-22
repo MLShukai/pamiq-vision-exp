@@ -25,5 +25,8 @@ log_level: INFO
 # Experient name of job.
 experiment_name: default
 
+# Checkpoint path
+saved_state: null
+
 # Tag list of aim.
 tags: []
