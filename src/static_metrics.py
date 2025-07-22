@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import hydra
 import rootutils
@@ -20,6 +21,15 @@ def main(cfg: DictConfig) -> None:
     cfg_view = cfg.copy()
     OmegaConf.resolve(cfg_view)
     logger.info(f"Loaded configuration:\n{OmegaConf.to_yaml(cfg_view)}")
+
+    exp_cfg = OmegaConf.load(f"{cfg.exp_dir}/.hydra/config.yaml")
+    exp_cfg.update(OmegaConf.load(f"{cfg.exp_dir}/.hydra/hydra.yaml"))
+    logger.info(f"Loaded exp configuration:\n{OmegaConf.to_yaml(exp_cfg)}")
+
+    state_path = Path(f"{cfg.exp_dir}/states/{cfg.state}")
+    if not state_path.exists():
+        raise ValueError(f"Specified state path is not found. {state_path}")
+    logger.info(f"State path: {state_path}")
 
 
 if __name__ == "__main__":
