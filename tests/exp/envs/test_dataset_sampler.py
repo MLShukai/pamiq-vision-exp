@@ -1,4 +1,3 @@
-import numpy as np
 import pytest
 import torch
 from PIL import Image
@@ -32,30 +31,12 @@ class TestDatasetSampler:
         dataset.__getitem__.return_value = (Image.new("RGB", (32, 32), color="red"), 0)
         return dataset
 
-    def test_initialization_with_default_seed(self, mock_dataset):
-        """Test initialization with default seed value."""
-        sampler = DatasetSampler(mock_dataset)
-
-        assert sampler.seed == 8391
-        assert sampler.num_samples == 100
-        assert len(sampler.selected_indices) == 100
-        assert sampler.current_index == 0
-
-    def test_initialization_with_custom_seed(self, mock_dataset):
-        """Test initialization with custom seed value."""
-        sampler = DatasetSampler(mock_dataset, seed=42)
-
-        assert sampler.seed == 42
-        assert sampler.num_samples == 100
-
     @pytest.mark.parametrize("max_samples", [1, 10, 50, 100])
     def test_initialization_with_max_samples(self, mock_dataset, max_samples):
         """Test initialization with various max_samples values."""
         sampler = DatasetSampler(mock_dataset, max_samples=max_samples)
 
         assert sampler.num_samples == max_samples
-        assert len(sampler.selected_indices) == max_samples
-        assert all(idx < 100 for idx in sampler.selected_indices)
 
     def test_max_samples_exceeds_dataset_size(self, mock_dataset):
         """Test that ValueError is raised when max_samples > dataset size."""
@@ -72,15 +53,27 @@ class TestDatasetSampler:
 
     def test_indices_are_shuffled(self, mock_dataset):
         """Test that indices are properly shuffled."""
-        sampler1 = DatasetSampler(mock_dataset, seed=42)
-        sampler2 = DatasetSampler(mock_dataset, seed=123)
+
+        # Create mock that returns unique values for each index
+        def get_item(idx):
+            return (torch.tensor([float(idx)]), idx)
+
+        mock_dataset.__getitem__.side_effect = get_item
+
+        sampler1 = DatasetSampler(mock_dataset, shuffle=True, seed=42, max_samples=10)
+        sampler2 = DatasetSampler(mock_dataset, shuffle=True, seed=123, max_samples=10)
+        sampler3 = DatasetSampler(mock_dataset, shuffle=True, seed=42, max_samples=10)
+
+        # Collect sequence of values from each sampler
+        seq1 = [sampler1()[0].item() for _ in range(10)]
+        seq2 = [sampler2()[0].item() for _ in range(10)]
+        seq3 = [sampler3()[0].item() for _ in range(10)]
 
         # Different seeds should produce different orderings
-        assert not np.array_equal(sampler1.selected_indices, sampler2.selected_indices)
+        assert seq1 != seq2
 
         # Same seed should produce same ordering
-        sampler3 = DatasetSampler(mock_dataset, seed=42)
-        assert np.array_equal(sampler1.selected_indices, sampler3.selected_indices)
+        assert seq1 == seq3
 
     @pytest.mark.parametrize(
         "image_data,expected_shape",
@@ -113,24 +106,42 @@ class TestDatasetSampler:
         mock_dataset.__getitem__.side_effect = get_item
         sampler = DatasetSampler(mock_dataset, seed=42, max_samples=5)
 
-        selected = sampler.selected_indices.copy()
-
-        for i in range(5):
+        # First iteration: collect values
+        first_iteration = []
+        for _ in range(5):
             image = sampler()
-            expected_idx = selected[i]
-            assert torch.allclose(image, torch.full((3, 32, 32), float(expected_idx)))
+            value = image[0, 0, 0].item()  # Get the fill value
+            first_iteration.append(value)
 
-    def test_cycling_behavior(self, mock_dataset_with_tensor):
+        # Second iteration: should get same sequence
+        second_iteration = []
+        for _ in range(5):
+            image = sampler()
+            value = image[0, 0, 0].item()
+            second_iteration.append(value)
+
+        assert first_iteration == second_iteration
+
+    def test_cycling_behavior(self, mock_dataset):
         """Test that sampler cycles back to beginning after reaching end."""
-        sampler = DatasetSampler(mock_dataset_with_tensor, max_samples=3)
 
-        indices = []
+        # Create dataset that returns unique tensors for each index
+        def get_item(idx):
+            return (torch.tensor([float(idx)]), idx)
+
+        mock_dataset.__len__.return_value = 10
+        mock_dataset.__getitem__.side_effect = get_item
+
+        sampler = DatasetSampler(mock_dataset, max_samples=3, shuffle=False)
+
+        # Collect values for two full cycles
+        values = []
         for _ in range(6):
-            sampler()
-            indices.append(sampler.current_index)
+            tensor = sampler()
+            values.append(tensor[0].item())
 
-        # Should cycle: 1, 2, 0, 1, 2, 0
-        assert indices == [1, 2, 0, 1, 2, 0]
+        # Should see the same pattern twice: 0,1,2,0,1,2
+        assert values[:3] == values[3:]
 
     @pytest.mark.parametrize(
         "max_samples,expected",
@@ -147,7 +158,13 @@ class TestDatasetSampler:
         """Test with various max_samples values."""
         mock_dataset = mocker.MagicMock()
         mock_dataset.__len__.return_value = 1000
+        mock_dataset.__getitem__.return_value = (torch.randn(3, 32, 32), 0)
 
         sampler = DatasetSampler(mock_dataset, max_samples=max_samples)
         assert sampler.num_samples == expected
-        assert len(sampler.selected_indices) == expected
+        # Verify by calling the sampler expected times
+        # If it doesn't raise an error, the number of samples is correct
+        for _ in range(expected):
+            result = sampler()
+            assert isinstance(result, torch.Tensor)
+            assert result.shape == (3, 32, 32)

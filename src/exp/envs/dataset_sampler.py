@@ -17,6 +17,8 @@ class DatasetSampler:
     def __init__(
         self,
         dataset: Dataset,
+        *,
+        shuffle: bool = False,
         seed: int = 8391,
         max_samples: int | None = None,
     ) -> None:
@@ -33,7 +35,6 @@ class DatasetSampler:
         """
 
         self.dataset = dataset
-        self.seed = seed
 
         if not isinstance(dataset, Sized):
             raise ValueError("Dataset must implement __len__ method")
@@ -52,14 +53,15 @@ class DatasetSampler:
 
         # Create and shuffle indices
         indices = np.arange(dataset_size)
-        rng = np.random.RandomState(seed)
-        rng.shuffle(indices)
+        if shuffle:
+            rng = np.random.RandomState(seed)
+            rng.shuffle(indices)
 
         # Select first num_samples indices
-        self.selected_indices = indices[: self.num_samples]
+        self._selected_indices = indices[: self.num_samples]
 
         # Initialize current index for sequential iteration
-        self.current_index = 0
+        self._current_index = 0
 
     def __call__(self) -> torch.Tensor:
         """Get the next image in sequence as a torch tensor.
@@ -68,7 +70,7 @@ class DatasetSampler:
             Image tensor with shape [C, H, W] as float
         """
         # Get current dataset index
-        dataset_idx = self.selected_indices[self.current_index]
+        dataset_idx = self._selected_indices[self._current_index]
 
         # Get image from dataset (returns (image, label) tuple)
         image, _ = self.dataset[dataset_idx]
@@ -88,6 +90,6 @@ class DatasetSampler:
             image = image.float()
 
         # Move to next index, cycling back to start if needed
-        self.current_index = (self.current_index + 1) % self.num_samples
+        self._current_index = (self._current_index + 1) % self.num_samples
 
         return image
