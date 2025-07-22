@@ -1,0 +1,12 @@
+defaults:
+  - _self_
+
+  - hydra: default
+  - paths: default
+
+exp_dir: ???
+state: ???
+
+experiment_name: "static_metrics"
+
+log_level: INFO
