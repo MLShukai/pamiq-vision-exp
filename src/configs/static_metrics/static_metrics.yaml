@@ -3,9 +3,9 @@ defaults:
 
   - hydra: default
   - paths: default
+  - shared: default
 
-exp_dir: ???
-state: ???
+saved_state: ???
 
 experiment_name: "static_metrics"
 
