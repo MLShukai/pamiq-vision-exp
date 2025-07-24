@@ -2,7 +2,7 @@ import pytest
 import torch
 from PIL import Image
 
-from exp.envs.dataset_sampler import DatasetSampler
+from exp.envs.dataset_sampler import DatasetSampler, ShuffleDataset
 
 
 class TestDatasetSampler:
@@ -51,30 +51,6 @@ class TestDatasetSampler:
         with pytest.raises(ValueError, match="Dataset must implement __len__ method"):
             DatasetSampler(mock_dataset)
 
-    def test_indices_are_shuffled(self, mock_dataset):
-        """Test that indices are properly shuffled."""
-
-        # Create mock that returns unique values for each index
-        def get_item(idx):
-            return (torch.tensor([float(idx)]), idx)
-
-        mock_dataset.__getitem__.side_effect = get_item
-
-        sampler1 = DatasetSampler(mock_dataset, shuffle=True, seed=42, max_samples=10)
-        sampler2 = DatasetSampler(mock_dataset, shuffle=True, seed=123, max_samples=10)
-        sampler3 = DatasetSampler(mock_dataset, shuffle=True, seed=42, max_samples=10)
-
-        # Collect sequence of values from each sampler
-        seq1 = [sampler1()[0].item() for _ in range(10)]
-        seq2 = [sampler2()[0].item() for _ in range(10)]
-        seq3 = [sampler3()[0].item() for _ in range(10)]
-
-        # Different seeds should produce different orderings
-        assert seq1 != seq2
-
-        # Same seed should produce same ordering
-        assert seq1 == seq3
-
     @pytest.mark.parametrize(
         "image_data,expected_shape",
         [
@@ -98,13 +74,13 @@ class TestDatasetSampler:
         assert result.shape == expected_shape
 
     def test_sequential_iteration(self, mock_dataset):
-        """Test that sampler iterates sequentially through selected indices."""
+        """Test that sampler iterates sequentially through indices."""
 
         def get_item(idx):
             return (torch.full((3, 32, 32), float(idx)), idx)
 
         mock_dataset.__getitem__.side_effect = get_item
-        sampler = DatasetSampler(mock_dataset, seed=42, max_samples=5)
+        sampler = DatasetSampler(mock_dataset, max_samples=5)
 
         # First iteration: collect values
         first_iteration = []
@@ -132,7 +108,7 @@ class TestDatasetSampler:
         mock_dataset.__len__.return_value = 10
         mock_dataset.__getitem__.side_effect = get_item
 
-        sampler = DatasetSampler(mock_dataset, max_samples=3, shuffle=False)
+        sampler = DatasetSampler(mock_dataset, max_samples=3)
 
         # Collect values for two full cycles
         values = []
@@ -168,3 +144,82 @@ class TestDatasetSampler:
             result = sampler()
             assert isinstance(result, torch.Tensor)
             assert result.shape == (3, 32, 32)
+
+
+class TestShuffleDataset:
+    """Test the ShuffleDataset class."""
+
+    @pytest.fixture
+    def mock_dataset(self, mocker):
+        """Create a mock dataset with sequential values."""
+        dataset = mocker.MagicMock()
+        dataset.__len__.return_value = 10
+
+        # Return sequential values to test shuffling
+        def get_item(idx):
+            return idx
+
+        dataset.__getitem__.side_effect = get_item
+        return dataset
+
+    def test_shuffling_with_seed(self, mock_dataset):
+        """Test that ShuffleDataset properly shuffles indices."""
+        # Create two datasets with same seed
+        shuffle1 = ShuffleDataset(mock_dataset, seed=42)
+        shuffle2 = ShuffleDataset(mock_dataset, seed=42)
+
+        # Create dataset with different seed
+        shuffle3 = ShuffleDataset(mock_dataset, seed=123)
+
+        # Collect values
+        values1 = [shuffle1[i] for i in range(10)]
+        values2 = [shuffle2[i] for i in range(10)]
+        values3 = [shuffle3[i] for i in range(10)]
+
+        # Same seed should produce same order
+        assert values1 == values2
+
+        # Different seed should produce different order
+        assert values1 != values3
+
+        # Should contain all original values
+        assert sorted(values1) == list(range(10))
+        assert sorted(values3) == list(range(10))
+
+    def test_len_method(self, mock_dataset):
+        """Test that __len__ returns correct dataset length."""
+        shuffle_dataset = ShuffleDataset(mock_dataset, seed=42)
+        assert len(shuffle_dataset) == 10
+
+    def test_dataset_not_sized(self, mocker):
+        """Test that ValueError is raised when dataset doesn't implement
+        __len__."""
+        mock_dataset = mocker.Mock()
+
+        with pytest.raises(ValueError, match="Dataset must implement __len__ method"):
+            ShuffleDataset(mock_dataset)
+
+    def test_getitem_returns_correct_values(self, mock_dataset):
+        """Test that getitem returns the correct shuffled values."""
+        shuffle_dataset = ShuffleDataset(mock_dataset, seed=42)
+
+        # Get all values
+        values = [shuffle_dataset[i] for i in range(10)]
+
+        # Should have all values from 0 to 9
+        assert set(values) == set(range(10))
+
+        # Values should not be in sequential order (with high probability)
+        assert values != list(range(10))
+
+    def test_default_seed(self, mock_dataset):
+        """Test that default seed produces consistent results."""
+        # Create datasets without specifying seed (uses default seed=8391)
+        shuffle1 = ShuffleDataset(mock_dataset)
+        shuffle2 = ShuffleDataset(mock_dataset)
+
+        # Should produce same order with default seed
+        values1 = [shuffle1[i] for i in range(10)]
+        values2 = [shuffle2[i] for i in range(10)]
+
+        assert values1 == values2
