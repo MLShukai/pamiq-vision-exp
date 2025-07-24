@@ -6,7 +6,7 @@ import hydra
 import rootutils
 import torch
 import torch.nn as nn
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from torch.utils.data import Dataset
 
 from exp.oc_resolvers import register_custom_resolvers
@@ -41,7 +41,9 @@ def main(cfg: DictConfig) -> None:
 
     exp_cfg = OmegaConf.load(exp_dir / ".hydra/config.yaml")
     exp_cfg.update(OmegaConf.load(exp_dir / ".hydra/hydra.yaml"))
-    logger.info(f"Loaded exp configuration:\n{OmegaConf.to_yaml(exp_cfg)}")
+    with open_dict(shared_cfg):
+        shared_cfg.image = exp_cfg.shared.image
+    logger.info("Loaded exp configuration.")
 
     models = load_models(exp_cfg, state_path, cfg.shared.device, cfg.shared.dtype)
 
@@ -75,6 +77,7 @@ def load_models(
                 (state_path / "models" / name).with_suffix(".pt"), map_location=device
             )
         )
+        m.eval()
         logger.info(f"Loaded '{name}' model.")
         models[name] = m
 
