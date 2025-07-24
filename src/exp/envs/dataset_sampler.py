@@ -7,6 +7,34 @@ from PIL import Image
 from torch.utils.data import Dataset
 
 
+class DatasetSelectOnlyImage[T](Dataset[T]):
+    """Wrapper that extracts only images from datasets that return (image,
+    label) tuples.
+
+    Many torchvision datasets (e.g., CIFAR-10, CIFAR-100, ImageNet)
+    return tuples of (image, label) when accessed. This wrapper extracts
+    only the image component, making it compatible with components that
+    expect just images.
+    """
+
+    def __init__(self, dataset: Dataset[tuple[T, int]]) -> None:
+        """Initialize the image-only dataset wrapper.
+
+        Args:
+            dataset: A dataset that returns (image, label) tuples
+        """
+        self._dataset = dataset
+
+    @override
+    def __getitem__(self, index: int) -> T:
+        return self._dataset[index][0]
+
+    def __len__(self) -> int:
+        if isinstance(self._dataset, Sized):
+            return len(self._dataset)
+        raise RuntimeError(...)
+
+
 class DatasetSampler:
     """Sequential sampler for torch datasets.
 
@@ -20,7 +48,7 @@ class DatasetSampler:
 
     def __init__(
         self,
-        dataset: Dataset[tuple[Image.Image | torch.Tensor, int]],
+        dataset: Dataset[Image.Image | torch.Tensor],
         *,
         max_samples: int | None = None,
     ) -> None:
@@ -63,7 +91,7 @@ class DatasetSampler:
             Image tensor with shape [C, H, W] as float
         """
         # Get image from dataset (returns (image, label) tuple)
-        image, _ = self.dataset[self._current_index]
+        image = self.dataset[self._current_index]
 
         # Convert PIL Image to tensor if needed
         if isinstance(image, Image.Image):

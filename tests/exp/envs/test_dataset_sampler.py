@@ -2,7 +2,11 @@ import pytest
 import torch
 from PIL import Image
 
-from exp.envs.dataset_sampler import DatasetSampler, ShuffleDataset
+from exp.envs.dataset_sampler import (
+    DatasetSampler,
+    DatasetSelectOnlyImage,
+    ShuffleDataset,
+)
 
 
 class TestDatasetSampler:
@@ -20,7 +24,7 @@ class TestDatasetSampler:
         """Create a mock dataset that returns tensors."""
         dataset = mocker.MagicMock()
         dataset.__len__.return_value = 10
-        dataset.__getitem__.return_value = (torch.randn(3, 32, 32), 0)
+        dataset.__getitem__.return_value = torch.randn(3, 32, 32)
         return dataset
 
     @pytest.fixture
@@ -28,7 +32,7 @@ class TestDatasetSampler:
         """Create a mock dataset that returns PIL images."""
         dataset = mocker.MagicMock()
         dataset.__len__.return_value = 10
-        dataset.__getitem__.return_value = (Image.new("RGB", (32, 32), color="red"), 0)
+        dataset.__getitem__.return_value = Image.new("RGB", (32, 32), color="red")
         return dataset
 
     @pytest.mark.parametrize("max_samples", [1, 10, 50, 100])
@@ -64,7 +68,7 @@ class TestDatasetSampler:
     ):
         """Test that __call__ returns correct tensor format for different input
         types."""
-        mock_dataset.__getitem__.return_value = (image_data, 0)
+        mock_dataset.__getitem__.return_value = image_data
         sampler = DatasetSampler(mock_dataset, max_samples=5)
 
         result = sampler()
@@ -77,7 +81,7 @@ class TestDatasetSampler:
         """Test that sampler iterates sequentially through indices."""
 
         def get_item(idx):
-            return (torch.full((3, 32, 32), float(idx)), idx)
+            return torch.full((3, 32, 32), float(idx))
 
         mock_dataset.__getitem__.side_effect = get_item
         sampler = DatasetSampler(mock_dataset, max_samples=5)
@@ -103,7 +107,7 @@ class TestDatasetSampler:
 
         # Create dataset that returns unique tensors for each index
         def get_item(idx):
-            return (torch.tensor([float(idx)]), idx)
+            return torch.tensor([float(idx)])
 
         mock_dataset.__len__.return_value = 10
         mock_dataset.__getitem__.side_effect = get_item
@@ -134,7 +138,7 @@ class TestDatasetSampler:
         """Test with various max_samples values."""
         mock_dataset = mocker.MagicMock()
         mock_dataset.__len__.return_value = 1000
-        mock_dataset.__getitem__.return_value = (torch.randn(3, 32, 32), 0)
+        mock_dataset.__getitem__.return_value = torch.randn(3, 32, 32)
 
         sampler = DatasetSampler(mock_dataset, max_samples=max_samples)
         assert sampler.num_samples == expected
@@ -223,3 +227,41 @@ class TestShuffleDataset:
         values2 = [shuffle2[i] for i in range(10)]
 
         assert values1 == values2
+
+
+class TestDatasetSelectOnlyImage:
+    """Test the DatasetSelectOnlyImage class."""
+
+    @pytest.fixture
+    def mock_dataset_with_tuples(self, mocker):
+        """Create a mock dataset that returns (image, label) tuples."""
+        dataset = mocker.MagicMock()
+        dataset.__len__.return_value = 10
+
+        # Return different images for each index to test correctness
+        def get_item(idx):
+            image = torch.full((3, 32, 32), float(idx))
+            return (image, idx)
+
+        dataset.__getitem__.side_effect = get_item
+        return dataset
+
+    def test_getitem_returns_only_image(self, mock_dataset_with_tuples):
+        """Test that __getitem__ returns only the image component."""
+        wrapper = DatasetSelectOnlyImage(mock_dataset_with_tuples)
+
+        # Test multiple indices
+        for idx in range(5):
+            result = wrapper[idx]
+
+            # Should be a tensor, not a tuple
+            assert isinstance(result, torch.Tensor)
+            assert result.shape == (3, 32, 32)
+
+            # Verify it's the correct image (filled with idx value)
+            assert torch.all(result == float(idx))
+
+    def test_len_method(self, mock_dataset_with_tuples):
+        """Test that __len__ returns correct dataset length."""
+        wrapper = DatasetSelectOnlyImage(mock_dataset_with_tuples)
+        assert len(wrapper) == 10
