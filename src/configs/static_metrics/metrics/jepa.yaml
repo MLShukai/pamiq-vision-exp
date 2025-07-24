@@ -1,0 +1,2 @@
+_target_: exp.validation.metrics_loggers.JEPAMetrics
+batch_size: 2048

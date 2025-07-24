@@ -13,3 +13,5 @@ saved_state: ???
 experiment_name: "static_metrics"
 
 log_level: INFO
+
+tags: []

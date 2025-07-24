@@ -1,14 +1,17 @@
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import aim
 import hydra
 import rootutils
 import torch
 import torch.nn as nn
-from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.utils.data import Dataset
 
+from exp.aim_utils import set_global_run
 from exp.oc_resolvers import register_custom_resolvers
 from exp.utils import get_class_module_path
 from exp.validation.metrics_loggers import MetricsLogger
@@ -59,7 +62,26 @@ def main(cfg: DictConfig) -> None:
     metrics.attach_models(models)
     metrics.attach_dataset(dataset)
 
-    metrics.run()
+    # Initialize Aim Run
+    aim_run = aim.Run(
+        repo=cfg.paths.aim_dir,
+        experiment=cfg.experiment_name,
+    )
+    aim_run.name = (
+        f"{cfg.experiment_name} {datetime.now().strftime('%Y/%m/%d %H:%M:%S')}"
+    )
+
+    # Set tags if available
+    if cfg.tags:
+        for tag in cfg.tags:
+            aim_run.add_tag(tag)
+
+    set_global_run(aim_run)
+
+    try:
+        metrics.run()
+    finally:
+        aim_run.close()
 
 
 def load_models(
