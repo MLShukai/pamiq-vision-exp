@@ -2,11 +2,12 @@ import pytest
 import torch
 
 from exp.envs.image_env import ImageEnvironment
+from exp.envs.transform import create_transform
 
 
 class TestImageEnvironment:
     def test_observe_basic_functionality(self):
-        """Test that observe method returns the correct image tensor."""
+        """Test that observe method returns the generated image tensor."""
         # Create a simple generator that returns a constant image
         test_image = torch.rand(3, 64, 64)  # RGB image of size 64x64
 
@@ -16,53 +17,38 @@ class TestImageEnvironment:
         env = ImageEnvironment(generator)
         observed = env.observe()
 
-        # Since standardization is on by default, check that values are standardized
+        # Without transform, should return the original image
         assert observed.shape == test_image.shape
-        assert torch.isclose(observed.mean(), torch.tensor(0.0), atol=1e-5)
-        assert torch.isclose(observed.std(), torch.tensor(1.0), atol=1e-5)
+        assert torch.allclose(observed, test_image)
 
-    def test_resize_functionality(self):
-        """Test that size parameter correctly resizes images."""
-        test_image = torch.ones(3, 64, 64)
+    def test_with_transform(self):
+        """Test that transform is correctly applied to images."""
+        test_image = torch.rand(3, 64, 64)
 
         def generator():
             return test_image
 
-        target_size = (32, 32)
-
-        env = ImageEnvironment(generator, size=target_size)
+        transform = create_transform(size=(32, 32))
+        env = ImageEnvironment(generator, transform=transform)
         observed = env.observe()
 
+        # Transform should resize and standardize
         assert observed.shape == (3, 32, 32)
+        assert torch.isclose(observed.mean(), torch.tensor(0.0), atol=0.1)
+        assert torch.isclose(observed.std(), torch.tensor(1.0), atol=0.1)
 
-    @pytest.mark.parametrize("standardize,expected_mean", [(True, 0.0), (False, 2.0)])
-    def test_standardize_parameter(self, standardize, expected_mean):
-        """Test that standardize parameter works correctly."""
-        # Create image with known mean and std
+    def test_without_transform(self):
+        """Test that images pass through unchanged without transform."""
         test_image = torch.ones(3, 64, 64) * 2.0  # Image with all values = 2
 
         def generator():
             return test_image
 
-        env = ImageEnvironment(generator, standardize=standardize)
+        env = ImageEnvironment(generator, transform=None)
         observed = env.observe()
 
-        assert torch.isclose(observed.mean(), torch.tensor(expected_mean), atol=1e-5)
-
-    def test_dtype_parameter(self):
-        """Test that dtype parameter works correctly."""
-        test_image = torch.ones(3, 64, 64, dtype=torch.uint8) * 255
-
-        def generator():
-            return test_image
-
-        env = ImageEnvironment(generator, dtype=torch.float16, standardize=False)
-        observed = env.observe()
-
-        assert observed.dtype == torch.float16
-        assert torch.isclose(
-            observed[0, 0, 0], torch.tensor(255.0, dtype=torch.float16)
-        )
+        assert torch.allclose(observed, test_image)
+        assert observed.mean() == 2.0
 
     def test_invalid_image_shape(self):
         """Test that an error is raised for invalid image shapes."""

@@ -1,12 +1,8 @@
 from collections.abc import Callable
 from typing import Any, override
 
-import torch
-import torchvision.transforms.v2.functional as F
 from pamiq_core import Environment
 from torch import Tensor
-
-from exp.utils import size_2d, size_2d_to_int_tuple
 
 
 class ImageEnvironment(Environment[Tensor, Any]):
@@ -15,29 +11,18 @@ class ImageEnvironment(Environment[Tensor, Any]):
     def __init__(
         self,
         image_generator: Callable[[], Tensor],
-        size: size_2d | None = None,
-        standardize: bool = True,
-        dtype: torch.dtype | None = None,
-        device: torch.device | None = None,
+        transform: Callable[[Tensor], Tensor] | None = None,
     ) -> None:
         """Initialize the ImageEnvironment.
 
         Args:
             image_generator: Function that returns image tensors
-            size: Optional target size to resize images to
-            standardize: Whether to standardize images (subtract mean and divide by std)
-            dtype: Torch data type for the returned images
+            transform: Optional transform to apply to generated images
         """
         super().__init__()
 
         self._generator = image_generator
-        if size is not None:
-            self._size = list(size_2d_to_int_tuple(size))
-        else:
-            self._size = None
-        self._standardize = standardize
-        self._dtype = dtype
-        self._device = device
+        self._transform = transform
 
     @override
     def observe(self) -> Tensor:
@@ -49,18 +34,15 @@ class ImageEnvironment(Environment[Tensor, Any]):
         Raises:
             ValueError: If the generated image doesn't have 3 dimensions [C, H, W]
         """
-        image = self._generator()
+        image = Tensor(self._generator())
+        if self._transform is not None:
+            image = self._transform(image)
+
         if image.ndim != 3:
             raise ValueError(
                 f"Generated image must have 3 dimensions [C, H, W], got shape {image.shape}"
             )
 
-        image = image.to(self._device, self._dtype)
-        if self._size is not None:
-            image = F.resize(image, self._size)
-
-        if self._standardize:
-            image = (image - image.mean()) / (image.std() + 1e-6)
         return image
 
     @override

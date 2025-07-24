@@ -10,8 +10,10 @@ agent:
 
 environment:
   _target_: exp.envs.image_env.ImageEnvironment
-  size:
-  - ${shared.image.height}
-  - ${shared.image.width}
-  device: ${shared.device}
-  dtype: ${shared.dtype}
+  transform:
+    _target_: exp.envs.transform.create_transform
+    size:
+    - ${shared.image.height}
+    - ${shared.image.width}
+    device: ${shared.device}
+    dtype: ${shared.dtype}
