@@ -487,7 +487,9 @@ class MultiBlockMaskCollator2d:
 
         return encoder_mask, predictor_target
 
-    def __call__(self, images: list[tuple[Tensor]]) -> tuple[Tensor, Tensor, Tensor]:
+    def __call__(
+        self, images: list[tuple[Tensor] | Tensor]
+    ) -> tuple[Tensor, Tensor, Tensor]:
         """Collate input images and create boolean masks for context encoder
         and predictor target.
 
@@ -501,7 +503,8 @@ class MultiBlockMaskCollator2d:
                 - collated_predictor_targets: Boolean masks representing predictor targets
                   (shape: [batch_size, n_patches])
         """
-        collated_images: Tensor = default_collate(images)[0]
+        tensor_list = [im if isinstance(im, Tensor) else im[0] for im in images]
+        collated_images: Tensor = default_collate(tensor_list)
 
         seed = self.step()
         g = torch.Generator()
