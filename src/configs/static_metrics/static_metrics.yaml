@@ -1,6 +1,9 @@
 defaults:
   - _self_
 
+  - dataset: cifar100
+  - metrics: jepa
+
   - hydra: default
   - paths: default
   - shared: default

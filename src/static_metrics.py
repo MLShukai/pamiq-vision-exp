@@ -1,13 +1,17 @@
 import logging
 from pathlib import Path
+from typing import Any
 
 import hydra
 import rootutils
 import torch
 import torch.nn as nn
 from omegaconf import DictConfig, ListConfig, OmegaConf
+from torch.utils.data import Dataset
 
 from exp.oc_resolvers import register_custom_resolvers
+from exp.utils import get_class_module_path
+from exp.validation.metrics_loggers import MetricsLogger
 
 register_custom_resolvers()
 
@@ -39,7 +43,21 @@ def main(cfg: DictConfig) -> None:
     exp_cfg.update(OmegaConf.load(exp_dir / ".hydra/hydra.yaml"))
     logger.info(f"Loaded exp configuration:\n{OmegaConf.to_yaml(exp_cfg)}")
 
-    load_models(exp_cfg, state_path, cfg.shared.device, cfg.shared.dtype)
+    models = load_models(exp_cfg, state_path, cfg.shared.device, cfg.shared.dtype)
+
+    metrics: MetricsLogger = hydra.utils.instantiate(cfg.metrics)
+    logger.info(
+        f"Instantiated metrics logger: {get_class_module_path(metrics.__class__)}"
+    )
+
+    dataset: Dataset[Any] = hydra.utils.instantiate(cfg.dataset)
+    logger.info(f"Instantiated dataset: {get_class_module_path(dataset.__class__)}")
+
+    metrics.attach_exp_cfg(exp_cfg)
+    metrics.attach_models(models)
+    metrics.attach_dataset(dataset)
+
+    metrics.run()
 
 
 def load_models(

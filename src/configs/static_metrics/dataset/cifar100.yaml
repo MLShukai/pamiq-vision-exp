@@ -1,0 +1,4 @@
+_target_: torchvision.datasets.CIFAR100
+download: true
+root: ${paths.data_dir}/cifar100
+train: true
