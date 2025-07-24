@@ -57,7 +57,7 @@ class JEPAMetrics(MetricsLogger):
         device = get_device(context_encoder)
 
         # Setup DataLoader with JEPA-specific collate function
-        collate_fn = hydra.utils.instantiate(self.exp_cfg.trainer.jepa.collate_fn)
+        collate_fn = hydra.utils.instantiate(self.exp_cfg.trainers.jepa.collate_fn)
         dataloader = DataLoader(
             self.dataset,
             batch_size=self.batch_size,
@@ -65,13 +65,11 @@ class JEPAMetrics(MetricsLogger):
             shuffle=False,  # No shuffling for consistent metrics
             drop_last=False,  # Process all samples
         )
-
         # Process batches and compute per-sample losses
         index = 0
         for batch in dataloader:
             # Move batch tensors to computation device
             batch = tuple(map(lambda x: x.to(device), batch))
-
             # Compute JEPA loss for this batch
             loss_dict = JEPATrainer.compute_loss(
                 target_encoder,
@@ -86,6 +84,9 @@ class JEPAMetrics(MetricsLogger):
                     loss.cpu().item(),
                     "loss",
                     step=index,
-                    context={"namespace": "metrics", "metrics_type": self.log_prefix},
+                    context={
+                        "namespace": "static_metrics",
+                        "metrics_type": self.log_prefix,
+                    },
                 )
                 index += 1  # Increment index for each sample
