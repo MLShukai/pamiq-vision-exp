@@ -28,11 +28,6 @@ def main(cfg: DictConfig) -> None:
     OmegaConf.resolve(cfg_view)
     logger.info(f"Loaded configuration:\n{OmegaConf.to_yaml(cfg_view)}")
 
-    # Convert device and dtype string object to pytorch object.
-    shared_cfg = cfg.shared
-    shared_cfg.device = f"${{torch.device:{shared_cfg.device}}}"
-    shared_cfg.dtype = f"${{torch.dtype:{shared_cfg.dtype}}}"
-
     state_path = Path(cfg.saved_state)
     if not state_path.exists():
         raise ValueError(f"Specified state path is not found. {state_path}")
@@ -41,9 +36,14 @@ def main(cfg: DictConfig) -> None:
 
     exp_cfg = OmegaConf.load(exp_dir / ".hydra/config.yaml")
     exp_cfg.update(OmegaConf.load(exp_dir / ".hydra/hydra.yaml"))
-    with open_dict(shared_cfg):
-        shared_cfg.image = exp_cfg.shared.image
     logger.info("Loaded exp configuration.")
+
+    # Convert device and dtype string object to pytorch object.
+    shared_cfg = cfg.shared
+    shared_cfg.device = f"${{torch.device:{shared_cfg.device}}}"
+    shared_cfg.dtype = f"${{torch.dtype:{shared_cfg.dtype}}}"
+    # match to experiment settings.
+    shared_cfg.image = exp_cfg.shared.image
 
     models = load_models(exp_cfg, state_path, cfg.shared.device, cfg.shared.dtype)
 
