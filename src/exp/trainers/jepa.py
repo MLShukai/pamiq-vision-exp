@@ -149,6 +149,7 @@ class JEPATrainer(TorchTrainer):
         """Dictionary structure for JEPA loss computation results."""
 
         loss: Tensor
+        loss_per_data: Tensor
         latent_context: Tensor
         latent_target: Tensor
         latent_predictor: Tensor
@@ -206,6 +207,7 @@ class JEPATrainer(TorchTrainer):
 
         # Ignore patches that are not selected for prediction.
         losses = torch.masked_fill(losses, ~targets_for_predictor, 0.0)
+        loss_per_data = losses.sum(-1) / targets_for_predictor.sum(-1)
         loss = losses.sum() / targets_for_predictor.sum()
 
         return cls.LossDict(
@@ -213,6 +215,7 @@ class JEPATrainer(TorchTrainer):
             latent_context=latent_context,
             latent_target=latent_target,
             latent_predictor=latent_predictor,
+            loss_per_data=loss_per_data,
         )
 
     @override
