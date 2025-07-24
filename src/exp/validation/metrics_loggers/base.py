@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 import torch.nn as nn
+from omegaconf import DictConfig, ListConfig
 from torch.utils.data import Dataset
 
 
@@ -34,6 +35,19 @@ class MetricsLogger(ABC):
         if self._models is None:
             raise RuntimeError("Models not attached. Call attach_models() first.")
         return self._models
+
+    _exp_cfg: DictConfig | ListConfig | None = None
+
+    def attach_exp_cfg(self, cfg: DictConfig | ListConfig) -> None:
+        self._exp_cfg = cfg
+
+    @property
+    def exp_cfg(self) -> DictConfig | ListConfig:
+        if self._exp_cfg is None:
+            raise RuntimeError(
+                "Experiemnt config not attached. Call attach_exp_cfg() first."
+            )
+        return self._exp_cfg
 
     @abstractmethod
     def run(self) -> None:
