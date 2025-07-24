@@ -1,4 +1,13 @@
-_target_: torchvision.datasets.CIFAR100
-download: true
-root: ${paths.data_dir}/cifar100
-train: true
+_target_: exp.envs.DatasetSelectOnlyImage
+dataset:
+  _target_: torchvision.datasets.CIFAR100
+  download: true
+  root: ${paths.data_dir}/cifar100
+  train: true
+  transform:
+    _target_: exp.envs.transform.create_transform
+    size:
+    - ${shared.image.height}
+    - ${shared.image.width}
+    device: ${shared.device}
+    dtype: ${shared.dtype}
