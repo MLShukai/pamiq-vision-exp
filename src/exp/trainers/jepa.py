@@ -5,7 +5,7 @@ from collections.abc import Callable
 from functools import partial
 from multiprocessing import Value
 from pathlib import Path
-from typing import override
+from typing import TypedDict, override
 
 import torch
 import torch.nn.functional as F
@@ -145,6 +145,76 @@ class JEPATrainer(TorchTrainer):
             )
         }
 
+    class LossDict(TypedDict):
+        """Dictionary structure for JEPA loss computation results."""
+
+        loss: Tensor
+        latent_context: Tensor
+        latent_target: Tensor
+        latent_predictor: Tensor
+
+    @classmethod
+    def compute_loss(
+        cls,
+        target_encoder: Encoder,
+        context_encoder: Encoder,
+        predictor: Predictor,
+        batch: tuple[Tensor, Tensor, Tensor],
+    ) -> LossDict:
+        """Compute JEPA loss between predicted and target representations.
+
+        Args:
+            target_encoder: Target encoder model (used without gradients).
+            context_encoder: Context encoder model that processes masked inputs.
+            predictor: Predictor model that predicts target representations.
+            batch: Tuple containing:
+                - data: Input images (shape: [batch_size, channels, height, width])
+                - masks_for_context_encoder: Boolean masks for context encoder
+                  (shape: [batch_size, n_patches], True = masked)
+                - targets_for_predictor: Boolean masks indicating which patches
+                  to predict (shape: [batch_size, n_patches], True = predict)
+
+        Returns:
+            LossDict containing:
+                - loss: Averaged smooth L1 loss over predicted patches
+                - latent_context: Context encoder representations
+                - latent_target: Target encoder representations (normalized)
+                - latent_predictor: Predictor output representations
+        """
+        (data, masks_for_context_encoder, targets_for_predictor) = batch
+
+        # target encoder
+        with torch.no_grad():
+            latent_target = target_encoder(data)
+            # normalize over feature-dim
+            latent_target = F.layer_norm(
+                latent_target,
+                (latent_target.size(-1),),
+            )
+
+        # context encoder
+        latent_context = context_encoder(data, masks_for_context_encoder)
+
+        # predictor
+        latent_predictor = predictor(latent_context, targets_for_predictor)
+
+        # Element wise smooth l1 loss for masking.
+        losses = F.smooth_l1_loss(
+            latent_predictor, latent_target, reduction="none"
+        ).mean(-1)
+        # shape: [batch, n_patches]
+
+        # Ignore patches that are not selected for prediction.
+        losses = torch.masked_fill(losses, ~targets_for_predictor, 0.0)
+        loss = losses.sum() / targets_for_predictor.sum()
+
+        return cls.LossDict(
+            loss=loss,
+            latent_context=latent_context,
+            latent_target=latent_target,
+            latent_predictor=latent_predictor,
+        )
+
     @override
     def train(self) -> None:
         """Execute JEPA training process.
@@ -152,12 +222,10 @@ class JEPATrainer(TorchTrainer):
         This method implements the core JEPA training loop:
         1. Creates a dataset and dataloader from the collected data
         2. For each batch:
-           - Encodes data with the target encoder (without gradients)
-           - Encodes masked data with the context encoder
-           - Uses the predictor to predict target patches from context
-           - Computes smooth L1 loss between predictions and target representations
+           - Calls compute_loss to get loss and intermediate representations
            - Updates context encoder and predictor parameters via backpropagation
            - Updates target encoder parameters via exponential moving average
+           - Logs training metrics including loss and latent standard deviations
 
         The target encoder serves as a momentum-updated teacher model that provides
         stable targets for the context encoder and predictor to learn from.
@@ -169,41 +237,17 @@ class JEPATrainer(TorchTrainer):
         for _ in range(self.max_epochs):
             batch: tuple[Tensor, Tensor, Tensor]
             for batch in dataloader:
-                (data, masks_for_context_encoder, targets_for_predictor) = batch
-                data = data.to(device)
-                masks_for_context_encoder = masks_for_context_encoder.to(device)
-                targets_for_predictor = targets_for_predictor.to(device)
+                batch = tuple(map(lambda x: x.to(device), batch))  # pyright: ignore[reportAssignmentType, ]
 
                 self.optimizers[OPTIMIZER_NAME].zero_grad()
-                # target encoder
-                with torch.no_grad():
-                    latent_from_target_encoder: Tensor = self.target_encoder(data)
-                    # normalize over feature-dim
-                    latent_from_target_encoder = F.layer_norm(
-                        latent_from_target_encoder,
-                        (latent_from_target_encoder.size(-1),),
-                    )
-
-                # context encoder
-                latent_from_context_encoder = self.context_encoder(
-                    data, masks_for_context_encoder
+                loss_dict = self.compute_loss(
+                    self.target_encoder.model,
+                    self.context_encoder.model,
+                    self.predictor.model,
+                    batch,
                 )
 
-                # predictor
-                latent_from_predictor = self.predictor(
-                    latent_from_context_encoder, targets_for_predictor
-                )
-
-                # Element wise smooth l1 loss for masking.
-                losses = F.smooth_l1_loss(
-                    latent_from_predictor, latent_from_target_encoder, reduction="none"
-                ).mean(-1)
-                # shape: [batch, n_patches]
-
-                # Ignore patches that are not selected for prediction.
-                losses = torch.masked_fill(losses, ~targets_for_predictor, 0.0)
-                loss = losses.sum() / targets_for_predictor.sum()
-
+                loss = loss_dict["loss"]
                 loss.backward()
                 self.optimizers[OPTIMIZER_NAME].step()
 
@@ -221,10 +265,12 @@ class JEPATrainer(TorchTrainer):
                             (1.0 - m) * context_encoder_param.detach().data
                         )
                 metrics = {
-                    "target_encoder_latent_std": latent_from_target_encoder.std(0)
+                    "target_encoder_latent_std": loss_dict["latent_target"]
+                    .std(0)
                     .mean()
                     .item(),
-                    "context_encoder_latent_std": latent_from_context_encoder.std(0)
+                    "context_encoder_latent_std": loss_dict["latent_context"]
+                    .std(0)
                     .mean()
                     .item(),
                     "loss": loss.item(),
