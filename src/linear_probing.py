@@ -10,7 +10,7 @@ from omegaconf import DictConfig, OmegaConf
 from pamiq_core import launch
 from torch.utils.data import DataLoader
 
-from exp.aim_utils import flatten_config, set_global_run
+from exp.aim_utils import get_global_run, set_global_run
 from exp.instantiations import (
     instantiate_buffers,
     instantiate_interaction,
@@ -79,6 +79,7 @@ def train(cfg: DictConfig, run: aim.Run) -> None:
         drop_last=True,
         pin_memory=True,
     )
+    global_step = 0
     for _ in range(cfg.max_epochs):
         images: torch.Tensor  # [batch_size, channels, height, width]
         labels: torch.Tensor  # [batch_size]
@@ -95,6 +96,14 @@ def train(cfg: DictConfig, run: aim.Run) -> None:
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            # logging
+            run.track(
+                loss.item(),
+                name="loss",
+                step=global_step,
+                context={"linear-probing": "jepa"},
+            )
+            global_step += 1
 
 
 if __name__ == "__main__":
