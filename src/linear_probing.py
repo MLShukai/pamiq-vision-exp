@@ -90,7 +90,7 @@ def train(cfg: DictConfig, run: aim.Run) -> None:
                     images
                 )  # [batch_size, n_patches, embed_dim]
                 features = features.mean(dim=1)  # [batch_size, embed_dim]
-            logits = classifier(features)  # torch.Size([batch_size, n_classes])
+            logits = classifier(features)  # [batch_size, n_classes]
             loss = torch.nn.functional.cross_entropy(logits, labels)
             optimizer.zero_grad()
             loss.backward()
