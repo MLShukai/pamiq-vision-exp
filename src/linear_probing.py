@@ -1,5 +1,7 @@
 import logging
+import os
 from datetime import datetime
+from pathlib import Path
 
 import aim
 import hydra
@@ -10,13 +12,7 @@ from omegaconf import DictConfig, OmegaConf
 from pamiq_core import launch
 from torch.utils.data import DataLoader
 
-from exp.aim_utils import get_global_run, set_global_run
-from exp.instantiations import (
-    instantiate_buffers,
-    instantiate_interaction,
-    instantiate_models,
-    instantiate_trainers,
-)
+from exp.aim_utils import set_global_run
 from exp.models.names import ModelName
 from exp.oc_resolvers import register_custom_resolvers
 
@@ -103,6 +99,15 @@ def train(cfg: DictConfig, run: aim.Run) -> None:
                 step=global_step,
                 context={"linear-probing": "jepa"},
             )
+            # save states
+            if global_step % cfg.save_interval == 0:
+                path = Path(cfg.paths.states_dir) / datetime.now().strftime(
+                    "%Y-%m-%d_%H-%M-%S,%f.state"
+                )
+                os.makedirs(path, exist_ok=True)
+                (path / "global_step").write_text(str(global_step), encoding="utf-8")
+                torch.save(classifier.state_dict(), path / "classifier.pt")
+                torch.save(optimizer.state_dict(), path / "optimizer.pt")
             global_step += 1
 
 
