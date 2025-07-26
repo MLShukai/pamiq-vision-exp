@@ -20,6 +20,7 @@ partial_optimizer:
 
 device: "cuda:0"
 batch_size: 32
+max_epochs: 3
 
 # You can specify `hydra.job_logging.root.level`
 log_level: INFO
