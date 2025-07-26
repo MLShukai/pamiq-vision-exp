@@ -108,7 +108,71 @@ def train(cfg: DictConfig, run: aim.Run) -> None:
                 (path / "global_step").write_text(str(global_step), encoding="utf-8")
                 torch.save(classifier.state_dict(), path / "classifier.pt")
                 torch.save(optimizer.state_dict(), path / "optimizer.pt")
+                evaluation(
+                    pretrained_model, classifier, dataloader, cfg, run, global_step
+                )
             global_step += 1
+
+
+def evaluation(
+    pretrained_model: nn.Module,
+    classifier: nn.Module,
+    dataloader: DataLoader,
+    cfg: DictConfig,
+    run: aim.Run,
+    global_step: int,
+) -> None:
+    """Evaluate the model on training dataset with Top-1 and Top-5 accuracy."""
+    pretrained_model.eval()
+    classifier.eval()
+
+    correct_top1 = 0
+    correct_top5 = 0
+    total = 0
+
+    with torch.no_grad():
+        for images, labels in dataloader:
+            images = images.to(cfg.device)
+            labels = labels.to(cfg.device)
+
+            # Extract features using pretrained model
+            features = pretrained_model(images)  # [batch_size, n_patches, embed_dim]
+            features = features.mean(dim=1)  # [batch_size, embed_dim]
+
+            # Get predictions from classifier
+            logits = classifier(features)  # [batch_size, n_classes]
+
+            # Calculate Top-1 accuracy
+            _, pred_top1 = torch.max(logits, 1)
+            correct_top1 += (pred_top1 == labels).sum().item()
+
+            # Calculate Top-5 accuracy
+            _, pred_top5 = torch.topk(logits, 5, dim=1)
+            correct_top5 += (pred_top5 == labels.unsqueeze(1)).any(dim=1).sum().item()
+
+            total += labels.size(0)
+
+    # Calculate accuracies
+    top1_accuracy = 100.0 * correct_top1 / total
+    top5_accuracy = 100.0 * correct_top5 / total
+
+    # Log to Aim
+    run.track(
+        top1_accuracy,
+        name="top1_accuracy",
+        step=global_step,
+        context={"linear-probing": "evaluation"},
+    )
+    run.track(
+        top5_accuracy,
+        name="top5_accuracy",
+        step=global_step,
+        context={"linear-probing": "evaluation"},
+    )
+
+    # Switch back to training mode
+    pretrained_model.train()
+    classifier.train()
 
 
 if __name__ == "__main__":
