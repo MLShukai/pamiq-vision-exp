@@ -85,7 +85,7 @@ class TestJEPAMetrics:
         assert calls[0][0][1] == "loss"
         assert calls[0][1]["step"] == 0
         assert calls[0][1]["context"] == {
-            "namespace": "metrics",
+            "namespace": "static_metrics",
             "metrics_type": "test_jepa",
         }
 
@@ -94,6 +94,6 @@ class TestJEPAMetrics:
         assert calls[1][0][1] == "loss"
         assert calls[1][1]["step"] == 1
         assert calls[1][1]["context"] == {
-            "namespace": "metrics",
+            "namespace": "static_metrics",
             "metrics_type": "test_jepa",
         }
