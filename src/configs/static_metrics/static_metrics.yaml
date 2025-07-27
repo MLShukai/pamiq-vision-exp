@@ -8,6 +8,9 @@ defaults:
   - paths: default
   - shared: default
 
+  # experiment configs allow for version control of specific hyperparameters
+  - experiment: null
+
 saved_state: ???
 
 experiment_name: "static_metrics"
