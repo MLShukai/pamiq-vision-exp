@@ -88,7 +88,6 @@ class TestExperimentTrainer:
         trainer.setup()
 
         assert trainer.current_epoch == 0
-        assert trainer.terminate_training is False
         assert trainer.aim_run is mock_aim_run
 
     def test_setup_without_aim_run(
@@ -121,7 +120,6 @@ class TestExperimentTrainer:
 
         assert trainer.batch_step_count == 3
         assert trainer.global_steps == 3
-        assert trainer.terminate_training is True
 
     def test_train_continuation(self, trainer: ConcreteTrainer, mock_aim_run):
         """Test training continuation with existing global_steps."""

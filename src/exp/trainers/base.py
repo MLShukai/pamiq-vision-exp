@@ -64,7 +64,6 @@ class ExperimentTrainer(TorchTrainer, ABC):
     def setup(self) -> None:
         super().setup()
         self.current_epoch = 0
-        self.terminate_training = False
 
         if (aim_run := get_global_run()) is None:
             raise ValueError(
@@ -87,12 +86,7 @@ class ExperimentTrainer(TorchTrainer, ABC):
                         self.global_steps - start_global_step
                         >= self.max_steps_every_train
                     ):
-                        self.terminate_training = True
-
-                if self.terminate_training:
-                    break
-            if self.terminate_training:
-                break
+                        return
 
     @override
     def save_state(self, path: Path) -> None:
