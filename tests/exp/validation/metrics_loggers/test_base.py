@@ -1,68 +1,83 @@
+"""Tests for MetricsLogger base class."""
+
 from typing import override
 
 import pytest
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset
+from omegaconf import DictConfig
+from torch.utils.data import DataLoader, TensorDataset
 
 from exp.validation.metrics_loggers.base import MetricsLogger
 
 
-class DummyDataset(Dataset):
-    """Dummy dataset for testing."""
+class SimpleMetricsLogger(MetricsLogger):
+    """Simple implementation for testing."""
 
-    def __len__(self):
-        return 10
-
-    @override
-    def __getitem__(self, idx):
-        return torch.randn(3, 32, 32), idx
-
-
-class DummyMetricsLogger(MetricsLogger):
-    """Dummy implementation of MetricsLogger for testing."""
+    def __init__(self):
+        super().__init__(metrics_type="test")
+        self.dataloader_called = False
+        self.batch_count = 0
 
     @override
-    def run(self) -> None:
-        """Dummy implementation of run method."""
-        # Access dataset and models to ensure they work
-        _ = self.dataset
-        _ = self.models
+    def create_dataloader(self) -> DataLoader:
+        """Create a simple dataloader."""
+        self.dataloader_called = True
+        return DataLoader(self.dataset, batch_size=2)
+
+    @override
+    def batch_step(self, batch, index):
+        """Count batches."""
+        self.batch_count += 1
 
 
 class TestMetricsLogger:
-    """Test the MetricsLogger base class."""
+    """Test MetricsLogger base functionality."""
 
-    @pytest.fixture
-    def dummy_dataset(self):
-        """Create a dummy dataset."""
-        return DummyDataset()
+    def test_dataset_attachment(self):
+        """Test dataset property and attachment."""
+        logger = SimpleMetricsLogger()
 
-    @pytest.fixture
-    def dummy_models(self):
-        """Create dummy models."""
-        return {
-            "encoder": nn.Linear(10, 5),
-            "decoder": nn.Linear(5, 10),
-        }
-
-    @pytest.fixture
-    def logger(self):
-        """Create a dummy metrics logger."""
-        return DummyMetricsLogger()
-
-    def test_dataset_property_error_when_not_attached(self, logger):
-        """Test that accessing dataset property raises error when not
-        attached."""
-        with pytest.raises(
-            RuntimeError, match="Dataset not attached. Call attach_dataset\\(\\) first."
-        ):
+        # Should raise error before attachment
+        with pytest.raises(RuntimeError, match="Dataset not attached"):
             _ = logger.dataset
 
-    def test_models_property_error_when_not_attached(self, logger):
-        """Test that accessing models property raises error when not
-        attached."""
-        with pytest.raises(
-            RuntimeError, match="Models not attached. Call attach_models\\(\\) first."
-        ):
+        # Should work after attachment
+        dataset = TensorDataset(torch.randn(10, 3))
+        logger.attach_dataset(dataset)
+        assert logger.dataset is dataset
+
+    def test_models_attachment(self):
+        """Test models property and attachment."""
+        logger = SimpleMetricsLogger()
+
+        # Should raise error before attachment
+        with pytest.raises(RuntimeError, match="Models not attached"):
             _ = logger.models
+
+        # Should work after attachment
+        models = {"model": nn.Linear(10, 5)}
+        logger.attach_models(models)
+        assert logger.models is models
+
+    def test_exp_cfg_attachment(self):
+        """Test experiment config attachment."""
+        logger = SimpleMetricsLogger()
+
+        # Should raise error before attachment
+        with pytest.raises(RuntimeError, match="Experiemnt config not attached"):
+            _ = logger.exp_cfg
+
+        # Should work after attachment
+        cfg = DictConfig({"test": "value"})
+        logger.attach_exp_cfg(cfg)
+        assert logger.exp_cfg is cfg
+
+    def test_run_without_aim(self):
+        """Test run fails without Aim setup."""
+        logger = SimpleMetricsLogger()
+        dataset = TensorDataset(torch.randn(4, 3))
+        logger.attach_dataset(dataset)
+
+        with pytest.raises(ValueError, match="Aim run not initialized"):
+            logger.run()
