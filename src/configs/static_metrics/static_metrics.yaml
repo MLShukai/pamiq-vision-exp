@@ -1,20 +1,40 @@
+# Static Metrics Configuration
+#
+# This config is used to compute metrics on trained models after training.
+# You need to specify the path to a saved state and the dataset/metrics to use.
+#
+# Example usage:
+#   python static_metrics.py saved_state=/path/to/state.pt
+#   python static_metrics.py saved_state=outputs/2025-01-01/12-34-56/states/state.pt dataset=cifar10
+#   python static_metrics.py saved_state=outputs/jepa_exp/states/state.pt metrics=jepa tags=[validation,cifar100]
+
 defaults:
   - _self_
 
+  # Dataset to evaluate on (options: cifar10, cifar100, etc.)
   - dataset: cifar100
+
+  # Metrics to compute (options: jepa, etc.)
   - metrics: jepa
 
+  # Hydra and path configurations (usually don't need to change)
   - hydra: default
   - paths: default
   - shared: default
 
-  # experiment configs allow for version control of specific hyperparameters
+  # Optional: Override specific experiment settings
   - experiment: null
 
+# REQUIRED: Path to saved state (must be specified via CLI)
+# Example: saved_state=outputs/2025-01-01/12-34-56/states/state.pt
 saved_state: ???
 
+# Name for this metrics run in Aim UI
 experiment_name: "static_metrics"
 
+# Logging level
 log_level: INFO
 
+# Optional tags for organizing runs in Aim UI
+# Example: tags=[validation,final_model]
 tags: []

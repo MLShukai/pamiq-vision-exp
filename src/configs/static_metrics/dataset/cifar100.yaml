@@ -1,9 +1,22 @@
+# CIFAR-100 Dataset Configuration
+# 100 classes with 600 images per class (50,000 training images)
+
 _target_: exp.envs.DatasetSelectOnlyImage
+
 dataset:
   _target_: torchvision.datasets.CIFAR100
+
+  # Automatically download dataset if not present
   download: true
+
+  # Data directory location
   root: ${paths.data_dir}/cifar100
+
+  # Use training set for metrics computation
+  # Set to false to use test set instead
   train: true
+
+  # Image preprocessing
   transform:
     _target_: exp.envs.transform.create_transform
     size:
