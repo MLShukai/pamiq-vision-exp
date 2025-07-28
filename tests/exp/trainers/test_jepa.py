@@ -55,7 +55,8 @@ class TestJEPATrainer:
 
     @pytest.fixture
     def trainer(self, partial_optimizer, collate_fn, mocker: MockerFixture):
-        mocker.patch("exp.trainers.jepa.get_global_run")
+        mock_run = mocker.MagicMock()
+        mocker.patch("exp.trainers.base.get_global_run", return_value=mock_run)
         return JEPATrainer(
             partial_optimizer,
             collate_fn=collate_fn,
@@ -81,22 +82,12 @@ class TestJEPATrainer:
                 torch.randn(self.CHANNELS, self.IMAGE_SIZE, self.IMAGE_SIZE)
             )
 
-        assert trainer.global_step == 0
+        assert trainer.global_steps == 0
         assert trainer.run() is True
-        assert trainer.global_step > 0
-        global_step = trainer.global_step
+        assert trainer.global_steps > 0
+        global_steps = trainer.global_steps
         assert trainer.run() is False
-        assert trainer.global_step == global_step
-
-    def test_save_and_load_state(self, trainer: JEPATrainer, tmp_path: Path):
-        trainer_path = tmp_path / "trainer"
-        trainer.save_state(trainer_path)
-        global_step = trainer.global_step
-        assert (trainer_path / "global_step").is_file()
-
-        trainer.global_step = -1
-        trainer.load_state(trainer_path)
-        assert trainer.global_step == global_step
+        assert trainer.global_steps == global_steps
 
 
 class TestMultiBlockMaskCollator2d:

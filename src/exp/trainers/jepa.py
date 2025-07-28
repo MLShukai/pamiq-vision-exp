@@ -4,28 +4,28 @@ import random
 from collections.abc import Callable
 from functools import partial
 from multiprocessing import Value
-from pathlib import Path
 from typing import TypedDict, override
 
 import torch
 import torch.nn.functional as F
 from pamiq_core import DataUser
 from pamiq_core.data.impls import RandomReplacementBuffer
-from pamiq_core.torch import OptimizersSetup, TorchTrainer, get_device
+from pamiq_core.torch import OptimizersSetup, get_device
 from torch import Tensor
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader, TensorDataset, default_collate
 
-from exp.aim_utils import get_global_run
 from exp.buffers import BufferName
 from exp.models import ModelName
 from exp.models.jepa import Encoder, Predictor
 from exp.utils import size_2d, size_2d_to_int_tuple
 
+from .base import ExperimentTrainer
+
 OPTIMIZER_NAME = "optimizer"
 
 
-class JEPATrainer(TorchTrainer):
+class JEPATrainer(ExperimentTrainer):
     """Trainer for Joint Embedding Predictive Architecture (I-JEPA).
 
     This trainer implements the JEPA training process which involves:
@@ -53,6 +53,7 @@ class JEPATrainer(TorchTrainer):
         max_epochs: int = 1,
         min_buffer_size: int = 0,
         min_new_data_count: int = 0,
+        max_steps_every_train: int | None = None,
     ) -> None:
         """Initialize the JEPA trainer.
 
@@ -75,6 +76,8 @@ class JEPATrainer(TorchTrainer):
             max_epochs: Maximum number of epochs to train per training session.
             min_buffer_size: Minimum buffer size required before training starts.
             min_new_data_count: Minimum number of new data points required for training.
+            max_steps_every_train: Maximum number of steps to train per session.
+                If set, training stops after this many steps.
         """
         super().__init__(data_user_name, min_buffer_size, min_new_data_count)
 
@@ -93,7 +96,7 @@ class JEPATrainer(TorchTrainer):
         self.log_prefix = log_prefix
         self.target_encoder_update_moving_average = target_encoder_update_moving_average
         self.max_epochs = max_epochs
-        self.global_step = 0
+        self.max_steps_every_train = max_steps_every_train
 
     @override
     def on_data_users_attached(self) -> None:
@@ -144,6 +147,11 @@ class JEPATrainer(TorchTrainer):
                 )
             )
         }
+
+    @override
+    def setup(self) -> None:
+        super().setup()
+        self.device = get_device(self.context_encoder.model)
 
     class LossDict(TypedDict):
         """Dictionary structure for JEPA loss computation results."""
@@ -216,89 +224,57 @@ class JEPATrainer(TorchTrainer):
         )
 
     @override
-    def train(self) -> None:
-        """Execute JEPA training process.
-
-        This method implements the core JEPA training loop:
-        1. Creates a dataset and dataloader from the collected data
-        2. For each batch:
-           - Calls compute_loss to get loss and intermediate representations
-           - Updates context encoder and predictor parameters via backpropagation
-           - Updates target encoder parameters via exponential moving average
-           - Logs training metrics including loss and latent standard deviations
-
-        The target encoder serves as a momentum-updated teacher model that provides
-        stable targets for the context encoder and predictor to learn from.
-        """
+    def create_dataloader(self) -> DataLoader[tuple[Tensor, Tensor, Tensor]]:
         dataset = TensorDataset(torch.stack(self.data_user.get_data()))
-        dataloader = self.partial_dataloader(dataset=dataset)
-        device = get_device(self.context_encoder.model)
+        return self.partial_dataloader(dataset=dataset)
 
-        for _ in range(self.max_epochs):
-            batch: tuple[Tensor, Tensor, Tensor]
-            for batch in dataloader:
-                batch = tuple(map(lambda x: x.to(device), batch))  # pyright: ignore[reportAssignmentType, ]
+    @override
+    def batch_step(self, batch: tuple[Tensor, Tensor, Tensor], index: int) -> None:
+        batch = tuple(map(lambda x: x.to(self.device), batch))  # pyright: ignore [reportAssignmentType, ]
+        self.optimizers[OPTIMIZER_NAME].zero_grad()
+        loss_dict = self.compute_loss(
+            self.target_encoder.model,
+            self.context_encoder.model,
+            self.predictor.model,
+            batch,
+        )
 
-                self.optimizers[OPTIMIZER_NAME].zero_grad()
-                loss_dict = self.compute_loss(
-                    self.target_encoder.model,
-                    self.context_encoder.model,
-                    self.predictor.model,
-                    batch,
+        loss = loss_dict["loss"]
+        loss.backward()
+        self.optimizers[OPTIMIZER_NAME].step()
+
+        # target_encoder updates weights by moving average from context_encoder
+        with torch.no_grad():
+            # In the original I-JEPA, m changes through training process.
+            # But in ami-q, since assuming Semi-permanent training, m is set as fixed value.
+            m = self.target_encoder_update_moving_average
+            for target_encoder_param, context_encoder_param in zip(
+                self.target_encoder.model.parameters(),
+                self.context_encoder.model.parameters(),
+                strict=True,
+            ):
+                target_encoder_param.data.mul_(m).add_(
+                    (1.0 - m) * context_encoder_param.detach().data
                 )
+        metrics = {
+            "target_encoder_latent_std": loss_dict["latent_target"]
+            .std(0)
+            .mean()
+            .item(),
+            "context_encoder_latent_std": loss_dict["latent_context"]
+            .std(0)
+            .mean()
+            .item(),
+            "loss": loss.item(),
+        }
 
-                loss = loss_dict["loss"]
-                loss.backward()
-                self.optimizers[OPTIMIZER_NAME].step()
-
-                # target_encoder updates weights by moving average from context_encoder
-                with torch.no_grad():
-                    # In the original I-JEPA, m changes through training process.
-                    # But in ami-q, since assuming Semi-permanent training, m is set as fixed value.
-                    m = self.target_encoder_update_moving_average
-                    for target_encoder_param, context_encoder_param in zip(
-                        self.target_encoder.model.parameters(),
-                        self.context_encoder.model.parameters(),
-                        strict=True,
-                    ):
-                        target_encoder_param.data.mul_(m).add_(
-                            (1.0 - m) * context_encoder_param.detach().data
-                        )
-                metrics = {
-                    "target_encoder_latent_std": loss_dict["latent_target"]
-                    .std(0)
-                    .mean()
-                    .item(),
-                    "context_encoder_latent_std": loss_dict["latent_context"]
-                    .std(0)
-                    .mean()
-                    .item(),
-                    "loss": loss.item(),
-                }
-                # logging
-                if run := get_global_run():
-                    for tag, value in metrics.items():
-                        run.track(
-                            value,
-                            name=tag,
-                            step=self.global_step,
-                            context={"trainer": self.log_prefix},
-                        )
-
-                self.global_step += 1
-
-    @override
-    def save_state(self, path: Path) -> None:
-        """Save trainer state to disk."""
-        super().save_state(path)
-        path.mkdir(exist_ok=True)
-        (path / "global_step").write_text(str(self.global_step), "utf-8")
-
-    @override
-    def load_state(self, path: Path) -> None:
-        """Load trainer state from disk."""
-        super().load_state(path)
-        self.global_step = int((path / "global_step").read_text("utf-8"))
+        for tag, value in metrics.items():
+            self.aim_run.track(
+                value,
+                name=tag,
+                step=self.global_steps,
+                context=self.default_aim_context,
+            )
 
     @staticmethod
     def create_buffer(
