@@ -149,6 +149,7 @@ class JEPATrainer(TorchTrainer):
         """Dictionary structure for JEPA loss computation results."""
 
         loss: Tensor
+        loss_per_data: Tensor
         latent_context: Tensor
         latent_target: Tensor
         latent_predictor: Tensor
@@ -206,6 +207,7 @@ class JEPATrainer(TorchTrainer):
 
         # Ignore patches that are not selected for prediction.
         losses = torch.masked_fill(losses, ~targets_for_predictor, 0.0)
+        loss_per_data = losses.sum(-1) / targets_for_predictor.sum(-1)
         loss = losses.sum() / targets_for_predictor.sum()
 
         return cls.LossDict(
@@ -213,6 +215,7 @@ class JEPATrainer(TorchTrainer):
             latent_context=latent_context,
             latent_target=latent_target,
             latent_predictor=latent_predictor,
+            loss_per_data=loss_per_data,
         )
 
     @override
@@ -484,7 +487,9 @@ class MultiBlockMaskCollator2d:
 
         return encoder_mask, predictor_target
 
-    def __call__(self, images: list[tuple[Tensor]]) -> tuple[Tensor, Tensor, Tensor]:
+    def __call__(
+        self, images: list[tuple[Tensor] | Tensor]
+    ) -> tuple[Tensor, Tensor, Tensor]:
         """Collate input images and create boolean masks for context encoder
         and predictor target.
 
@@ -498,7 +503,8 @@ class MultiBlockMaskCollator2d:
                 - collated_predictor_targets: Boolean masks representing predictor targets
                   (shape: [batch_size, n_patches])
         """
-        collated_images: Tensor = default_collate(images)[0]
+        tensor_list = [im if isinstance(im, Tensor) else im[0] for im in images]
+        collated_images: Tensor = default_collate(tensor_list)
 
         seed = self.step()
         g = torch.Generator()

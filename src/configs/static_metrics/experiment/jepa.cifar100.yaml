@@ -1,0 +1,15 @@
+# @package _global_
+
+defaults:
+  - override /metrics: jepa
+  - override /dataset: cifar100
+
+metrics:
+  batch_size: 2048 # CIFAR100 is very small
+
+experiment_name: "static_metrics/jepa"
+
+tags:
+  - cifar100
+  - jepa
+  - static_metrics
