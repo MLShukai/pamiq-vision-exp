@@ -1,0 +1,29 @@
+# @package _global_
+
+defaults:
+  - _self_
+  - datasets: cifar100
+  - paths: default
+  - hydra: default
+  - models: jepa
+  - shared: default
+pretrained_weight: "${paths.root_dir}/logs/cifar100/runs/2025-07-20/20-42-20/states/2025-07-21_00-52-23,493854.state/models/jepa_target_encoder.pt"
+
+# Experient name of job.
+experiment_name: linear-probing
+
+device: "cuda:0"
+batch_size: 32
+max_epochs: 10
+save_interval: ${python.eval:"int(50000 / ${batch_size})"} # 1 epoch of CIFAR100.
+
+partial_optimizer:
+  _target_: torch.optim.AdamW
+  _partial_: true
+  lr: 1e-4
+
+# You can specify `hydra.job_logging.root.level`
+log_level: INFO
+
+# Tag list of aim.
+tags: []
