@@ -1,12 +1,12 @@
 services:
   dev:
-    container_name: python-uv-template
-    image: python-uv-template
+    container_name: pamiq-vision-exp
+    image: pamiq-vision-exp
     build:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - python-uv-template:/workspace
+      - pamiq-vision-exp:/workspace
       - uv_cache:/root/.cache/uv
       - pip_cache:/root/.cache/pip
       - pre-commit_cache:/root/.cache/pre-commit
@@ -18,8 +18,8 @@ services:
     stop_grace_period: 0s
 
 volumes:
-  python-uv-template:
-    name: python-uv-template
+  pamiq-vision-exp:
+    name: pamiq-vision-exp
   uv_cache:
   pip_cache:
   pre-commit_cache:

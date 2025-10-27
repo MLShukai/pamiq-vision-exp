@@ -24,27 +24,53 @@ type: ## Run pyright
 
 run: format test type ## Run all workflow
 
-
 # -----------------
 #  Docker Settings
 # -----------------
+ENABLE_GPU   ?= true
+DATA_DIR     ?= ./data
+LOG_DIR		 ?= ./logs
 
+# Compose files
 BASE_COMPOSE  := -f docker-compose.yml
+NVIDIA_COMPOSE   := -f docker-compose.nvidia.yml
+
+# Auto-detection capabilities.
+HAS_NVIDIA := $(shell which nvidia-smi > /dev/null 2>&1 && echo true || echo false)
+
+# -f options
+COMPOSE_FILES := $(BASE_COMPOSE)
+ifeq ($(ENABLE_GPU),true)
+  ifeq ($(HAS_NVIDIA),true)
+    COMPOSE_FILES += $(NVIDIA_COMPOSE)
+  endif
+endif
 
 docker-build: ## Build docker images
 	docker compose $(BASE_COMPOSE) build --no-cache
 
-docker-up: ## Start docker containers
+docker-up: ## Start docker containers (ENABLE_GPU=false to disable GPU, ENABLE_AUDIO=false to disable audio)
+	@echo "→ Starting dev container"
+	@echo "  GPU: $(ENABLE_GPU) (detected: NVIDIA: $(HAS_NVIDIA))"
+	@echo "  Data dir: $(DATA_DIR)"
+	@echo "  Log dir: $(LOG_DIR)"
 	docker compose $(COMPOSE_FILES) up -d
 
 docker-down: ## Stop docker containers
 	docker compose $(BASE_COMPOSE) down
-
-docker-restart: ## Restart docker containers
-	docker compose $(BASE_COMPOSE) restart
 
 docker-down-volume:  ## Stop docker containers with removing volumes.
 	docker compose $(BASE_COMPOSE) down -v
 
 docker-attach: ## Attach to development container
 	docker compose $(BASE_COMPOSE) exec dev bash
+
+# -----------------
+#  AIM Server
+# -----------------
+
+AIM_HOST ?= 0.0.0.0
+AIM_PORT ?= 43800
+
+aim:
+	uv run aim up --repo ./logs --host $(AIM_HOST) --port $(AIM_PORT)
