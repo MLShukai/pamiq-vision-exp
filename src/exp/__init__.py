@@ -1,3 +1,3 @@
 from importlib import metadata
 
-__version__ = metadata.version(__name__.replace("_", "-"))
+__version__ = metadata.version("pamiq-vision-exp")
