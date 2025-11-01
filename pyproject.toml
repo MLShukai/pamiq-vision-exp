@@ -4,8 +4,18 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = []
-requires-python = ">=3.13"
-dependencies = []
+requires-python = ">=3.12"
+dependencies = [
+    "aim>=3.29.1,<4",
+    "hydra-colorlog>=1.2.0",
+    "hydra-core>=1.3.2",
+    "numpy>=2.2.5",
+    "opencv-python>=4.11.0.86",
+    "pamiq-core>=0.5.1",
+    "rootutils>=1.0.7",
+    "torch>=2.6.0",
+    "torchvision>=0.21.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -43,7 +53,7 @@ testpaths = "tests/"
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.pyright]
-pythonVersion = "3.13"
+pythonVersion = "3.12"
 exclude = [
   "**/node_modules",
   "**/__pycache__",
@@ -61,8 +71,8 @@ reportPrivateUsage = "warning"
 line-length = 88
 indent-width = 4
 
-# Assume Python 3.13
-target-version = "py313"
+# Assume Python 3.12
+target-version = "py312"
 
 include = ["*.py"]
 
