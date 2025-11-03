@@ -11,6 +11,7 @@ dependencies = [
     "hydra-core>=1.3.2",
     "numpy>=2.2.5",
     "opencv-python>=4.11.0.86",
+    "opencv-python-headless>=4.11.0.86",
     "pamiq-core>=0.5.1",
     "rootutils>=1.0.7",
     "torch>=2.6.0",
@@ -26,6 +27,7 @@ packages = ["src/exp"]
 
 [dependency-groups]
 dev = [
+    "hydra-yaml-lsp>=0.1.1",
     "pre-commit>=4.2.0",
     "pyright[nodejs]>=1.1.398",
     "pytest>=8.3.5",
@@ -60,7 +62,6 @@ exclude = [
   "**/.venv",
   "tests/"
 ]
-strict = ["./src/"]
 reportMissingTypeStubs = false
 reportImplicitOverride = true
 reportPrivateUsage = "warning"
