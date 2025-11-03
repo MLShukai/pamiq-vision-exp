@@ -2,7 +2,7 @@ type Size2D = int | tuple[int, int]
 
 
 def size_2d_to_int_tuple(size: Size2D) -> tuple[int, int]:
-    """Convert `Size2D` type to int tuple."""
+    """Convert `size_2d` type to int tuple."""
     return (size, size) if isinstance(size, int) else (size[0], size[1])
 
 
