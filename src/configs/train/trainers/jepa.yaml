@@ -1,0 +1,20 @@
+jepa:
+  _target_: exp.trainers.jepa.JEPATrainer
+  partial_optimizer:
+    _target_: torch.optim.AdamW
+    _partial_: true
+    lr: 1e-4
+
+  batch_size: 32
+  min_new_data_count: 128
+  collate_fn:
+    _target_: exp.trainers.jepa.MultiBlockMaskCollator2d
+    mask_scale: [0.025, 0.125] # 2.5%-12.5% of patches masked per mask.
+    n_masks: 4
+    min_keep: 3
+    num_patches:
+      _target_: exp.models.components.image_patchifier.ImagePatchifier.compute_num_patches
+      image_size:
+        - ${shared.image.width}
+        - ${shared.image.height}
+      patch_size: ${shared.image.patch_size}

@@ -1,0 +1,3 @@
+image:
+  _target_: pamiq_core.data.impls.SequentialBuffer
+  max_size: 2048

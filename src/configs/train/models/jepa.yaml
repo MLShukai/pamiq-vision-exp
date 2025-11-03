@@ -1,0 +1,10 @@
+_target_: exp.models.jepa.create_image_jepa
+image_size:
+  - ${shared.image.height}
+  - ${shared.image.width}
+in_channels: ${shared.image.channels}
+patch_size: ${shared.image.patch_size}
+hidden_dim: 432
+embed_dim: 128
+depth: 6
+num_heads: 3

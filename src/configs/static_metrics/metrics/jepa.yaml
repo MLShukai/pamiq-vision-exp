@@ -1,0 +1,8 @@
+# JEPA Metrics Configuration
+# Computes per-sample JEPA reconstruction losses
+
+_target_: exp.validation.metrics_loggers.JEPAMetrics
+
+# Batch size for metrics computation
+# Larger values are faster but use more memory
+batch_size: 32
