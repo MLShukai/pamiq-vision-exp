@@ -51,7 +51,7 @@ repos:
     rev: v3.19.0
     hooks:
       - id: pyupgrade
-        args: [--py312-plus] # Target Python 3.12+
+        args: [--py313-plus] # Target Python 3.13+
 
   # Python docstring formatting
   - repo: https://github.com/PyCQA/docformatter

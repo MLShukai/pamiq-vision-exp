@@ -1,10 +1,10 @@
 [project]
-name = "python-uv-template"
+name = "pamiq-vision-exp"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = []
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = []
 
 [build-system]
@@ -40,7 +40,7 @@ testpaths = "tests/"
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.pyright]
-pythonVersion = "3.12"
+pythonVersion = "3.13"
 exclude = [
   "**/node_modules",
   "**/__pycache__",
@@ -58,8 +58,8 @@ reportPrivateUsage = "warning"
 line-length = 88
 indent-width = 4
 
-# Assume Python 3.12
-target-version = "py312"
+# Assume Python 3.13
+target-version = "py313"
 
 include = ["*.py"]
 
