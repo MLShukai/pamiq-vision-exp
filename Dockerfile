@@ -24,9 +24,6 @@ ENV UV_LINK_MODE=copy
 
 # Setup shell completions and environment
 RUN echo 'eval "$(uv generate-shell-completion bash)"' >> ~/.bashrc \
-&& make setup \
-&& uv run pre-commit install \
-&& echo "eval '$(uv run python src/train.py -sc install=bash)'" >> ~/.bashrc \
 && echo "source /workspace/.venv/bin/activate" >> ~/.bashrc
 
 # Console setup
