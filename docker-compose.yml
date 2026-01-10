@@ -1,7 +1,7 @@
 services:
   dev:
-    container_name: pamiq-vision-exp
-    image: pamiq-vision-exp
+    container_name: pamiq-vision-exp_${USER}
+    image: pamiq-vision-exp-${USER}
     build:
       context: .
       dockerfile: Dockerfile
@@ -19,7 +19,7 @@ services:
 
 volumes:
   pamiq-vision-exp:
-    name: pamiq-vision-exp
+    name: pamiq-vision-exp_${USER}
   uv_cache:
   pip_cache:
   pre-commit_cache:
