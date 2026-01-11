@@ -28,6 +28,11 @@ dev = [
 
 
 [tool.pytest.ini_options]
+markers = [
+  "slow: (deselect with '-m \"not slow\"')",
+]
+
+
 addopts = [
   "--color=yes",
   "--durations=0",

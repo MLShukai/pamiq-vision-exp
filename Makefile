@@ -18,7 +18,10 @@ format: ## Run pre-commit hooks
 	uv run pre-commit run -a
 
 test: ## Run pytest
-	uv run pytest -v --cov
+	uv run pytest -m "not slow" -v
+
+test-slow: ## Run with slow tests
+	uv run pytest -v
 
 type: ## Run pyright
 	uv run pyright
