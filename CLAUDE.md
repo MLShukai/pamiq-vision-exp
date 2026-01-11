@@ -41,3 +41,20 @@
 
 - 内部実装の詳細（例: 特定のメソッドが呼ばれたか）
 - 初期化時のプロパティ設定などの内部動作
+
+## コーディング規約
+
+### カプセル化
+
+- クラスの内部実装の詳細や属性は、基本的にすべて private（`_` prefix）にする
+- 外部から参照する必要がある属性のみ public にする
+- `__init__` で設定される属性は原則として private とする
+
+例:
+
+```python
+class Example:
+    def __init__(self, dim: int):
+        self._dim = dim  # private
+        self._layer = nn.Linear(dim, dim)  # private
+```
