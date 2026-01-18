@@ -4,7 +4,7 @@ from typing import Any, override
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from exp.trainer.base import ExperimentTrainer
+from exp.trainers.base import ExperimentTrainer
 
 
 class TrainerImpl(ExperimentTrainer):

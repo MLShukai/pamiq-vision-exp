@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from exp.trainer.vjepa.collator import MaskConfig, VideoMultiBlockMaskCollator
+from exp.trainers.vjepa.collator import MaskConfig, VideoMultiBlockMaskCollator
 
 
 class TestMaskConfig:

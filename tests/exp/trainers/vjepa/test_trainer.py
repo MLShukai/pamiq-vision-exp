@@ -6,8 +6,8 @@ from pamiq_core.testing import connect_components
 from pamiq_core.torch import TorchTrainingModel
 
 from exp.models.vjepa import Encoder, Predictor
-from exp.trainer.vjepa.collator import VideoMultiBlockMaskCollator
-from exp.trainer.vjepa.trainer import VJEPATrainer
+from exp.trainers.vjepa.collator import VideoMultiBlockMaskCollator
+from exp.trainers.vjepa.trainer import VJEPATrainer
 from tests.helpers import parametrize_device
 
 

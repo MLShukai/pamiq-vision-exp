@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from exp.models.vjepa import Encoder, Predictor
-from exp.trainer.vjepa.logic import VJEPATrainingLogic
+from exp.trainers.vjepa.logic import VJEPATrainingLogic
 
 
 @pytest.fixture
