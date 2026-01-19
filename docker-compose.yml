@@ -6,6 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
+      - ${DATA_DIR}:/workspace/data:ro
       - pamiq-vision-exp:/workspace
       - uv_cache:/root/.cache/uv
       - pip_cache:/root/.cache/pip
