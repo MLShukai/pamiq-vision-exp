@@ -27,5 +27,9 @@ ENV UV_LINK_MODE=copy
 RUN echo 'eval "$(uv generate-shell-completion bash)"' >> ~/.bashrc \
 && echo "source /workspace/.venv/bin/activate" >> ~/.bashrc
 
+# Setup Claude Code
+RUN curl -fsSL https://claude.ai/install.sh | bash \
+&& echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+
 # Console setup
 CMD [ "bash" ]
