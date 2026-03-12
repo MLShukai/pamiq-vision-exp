@@ -2,6 +2,7 @@ import pytest
 import torch
 
 from exp.models.vjepa import Encoder, Predictor
+from exp.trainers.vjepa.collator import VideoMultiBlockMaskCollator
 from exp.trainers.vjepa.logic import VJEPATrainingLogic
 
 
@@ -32,7 +33,13 @@ def models():
 
 
 @pytest.fixture
-def training_logic(models):
+def collator():
+    """Create a collator for testing."""
+    return VideoMultiBlockMaskCollator(num_tubelets=(2, 4, 4))
+
+
+@pytest.fixture
+def training_logic(models, collator):
     """Create VJEPATrainingLogic instance for testing."""
     context_encoder, target_encoder, predictor = models
     optimizer = torch.optim.Adam(
@@ -44,6 +51,7 @@ def training_logic(models):
         target_encoder=target_encoder,
         predictor=predictor,
         optimizer=optimizer,
+        collator=collator,
         ema_momentum=0.99,
     )
 
@@ -78,3 +86,15 @@ class TestVJEPATrainingLogic:
         result = training_logic.train_step(videos, masks, targets)
 
         assert torch.isfinite(result.loss)
+
+    def test_train_step_from_batch(self, training_logic):
+        # Create a raw video batch [B, n_tubelets, hidden_dim] matching encoder input
+        batch_size = 2
+        n_tubelets = 2 * 4 * 4
+        hidden_dim = 32
+        video_batch = torch.randn(batch_size, n_tubelets, hidden_dim)
+        result = training_logic.train_step_from_batch(video_batch)
+
+        assert torch.isfinite(result.loss)
+        assert "target_std" in result.metrics
+        assert "context_std" in result.metrics

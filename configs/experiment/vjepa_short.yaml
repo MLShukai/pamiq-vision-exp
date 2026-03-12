@@ -19,3 +19,6 @@ training:
   trigger_every_n_frames: 32
   batch_size: 4
   checkpoint_interval_seconds: 60.0
+  training_logic:
+    video_shape: ${model.video_shape}
+    tubelet_size: ${model.tubelet_size}

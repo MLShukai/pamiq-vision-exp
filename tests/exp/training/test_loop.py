@@ -13,7 +13,6 @@ def _make_loop(**overrides: object) -> TrainingLoop:
         "frame_stacker": MagicMock(),
         "buffer": MagicMock(),
         "training_logic": MagicMock(),
-        "collator": MagicMock(),
         "checkpoint_manager": MagicMock(),
         "trigger_every_n_frames": 5,
         "batch_size": 4,
@@ -93,17 +92,11 @@ class TestTrainingLoop:
         buffer.__len__ = MagicMock(return_value=10)
         buffer.sample = MagicMock(return_value=torch.randn(4, 3, 2, 8, 8))
 
-        collator = MagicMock()
-        collator.return_value = (
-            torch.randn(4, 3, 2, 8, 8),
-            torch.ones(4, 16, dtype=torch.bool),
-            torch.ones(4, 16, dtype=torch.bool),
-        )
-
         training_logic = MagicMock()
         result_mock = MagicMock()
         result_mock.loss.item.return_value = 0.5
-        training_logic.train_step = MagicMock(return_value=result_mock)
+        result_mock.metrics = {}
+        training_logic.train_step_from_batch = MagicMock(return_value=result_mock)
 
         _patch_time_no_checkpoint(mocker, 6)
 
@@ -112,7 +105,6 @@ class TestTrainingLoop:
             frame_stacker=stacker,
             buffer=buffer,
             training_logic=training_logic,
-            collator=collator,
             trigger_every_n_frames=3,
             batch_size=4,
             num_epochs=1,
@@ -121,7 +113,7 @@ class TestTrainingLoop:
 
         # 6 frames, trigger every 3 => 2 triggers
         # Each trigger: num_steps = max(10 // 4, 1) = 2, 1 epoch => 2 calls
-        assert training_logic.train_step.call_count == 4
+        assert training_logic.train_step_from_batch.call_count == 4
 
     def test_checkpoint_saved_at_time_interval(self, mocker):
         frame_loader = MagicMock()
@@ -205,17 +197,11 @@ class TestTrainingLoop:
         batch_tensor = torch.randn(4, 3, 2, 8, 8)
         buffer.sample = MagicMock(return_value=batch_tensor)
 
-        collator = MagicMock()
-        collator.return_value = (
-            torch.randn(4, 3, 2, 8, 8),
-            torch.ones(4, 16, dtype=torch.bool),
-            torch.ones(4, 16, dtype=torch.bool),
-        )
-
         training_logic = MagicMock()
         result_mock = MagicMock()
         result_mock.loss.item.return_value = 0.5
-        training_logic.train_step = MagicMock(return_value=result_mock)
+        result_mock.metrics = {}
+        training_logic.train_step_from_batch = MagicMock(return_value=result_mock)
 
         _patch_time_no_checkpoint(mocker, 3)
 
@@ -224,7 +210,6 @@ class TestTrainingLoop:
             frame_stacker=stacker,
             buffer=buffer,
             training_logic=training_logic,
-            collator=collator,
             trigger_every_n_frames=3,
             batch_size=4,
             num_epochs=1,

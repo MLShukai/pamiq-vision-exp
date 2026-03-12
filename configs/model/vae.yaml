@@ -1,0 +1,7 @@
+# VAE model configuration
+_target_: exp.models.vae.create_vae
+video_shape: [16, 224, 224]  # [T, H, W] — must match evaluation decoder
+tubelet_size: [2, 16, 16]
+in_channels: 3
+embed_dim: 128  # Output embedding dim, matches V-JEPA for fair comparison
+base_channels: 32

@@ -8,8 +8,7 @@ from exp.data.buffer import FIFOReplayBuffer
 from exp.data.loader import VideoFrameLoader
 from exp.data.stacking import FrameStacker
 from exp.tracking import ExperimentTracker
-from exp.trainers.vjepa.collator import VideoMultiBlockMaskCollator
-from exp.trainers.vjepa.logic import VJEPATrainingLogic
+from exp.trainers.base import TrainingLogic
 from exp.training.checkpoint import CheckpointManager
 
 logger = logging.getLogger(__name__)
@@ -20,6 +19,7 @@ class TrainingLoop:
 
     Orchestrates the data pipeline: frames -> stacking -> buffer -> trigger -> learn.
     Saves checkpoints at regular time intervals.
+    Method-agnostic: delegates learning to a TrainingLogic implementation.
     """
 
     def __init__(
@@ -27,8 +27,7 @@ class TrainingLoop:
         frame_loader: VideoFrameLoader,
         frame_stacker: FrameStacker,
         buffer: FIFOReplayBuffer,
-        training_logic: VJEPATrainingLogic,
-        collator: VideoMultiBlockMaskCollator,
+        training_logic: TrainingLogic,
         checkpoint_manager: CheckpointManager,
         trigger_every_n_frames: int,
         batch_size: int,
@@ -50,7 +49,6 @@ class TrainingLoop:
         self._frame_stacker = frame_stacker
         self._buffer = buffer
         self._training_logic = training_logic
-        self._collator = collator
         self._checkpoint_manager = checkpoint_manager
         self._trigger_every_n_frames = trigger_every_n_frames
         self._batch_size = batch_size
@@ -108,15 +106,7 @@ class TrainingLoop:
         for epoch in range(self._num_epochs):
             for step in range(num_steps):
                 batch = self._buffer.sample(self._batch_size)
-
-                video_list = [batch[i] for i in range(batch.shape[0])]
-                videos, masks, targets = self._collator(video_list)
-
-                videos = videos.to(self._device)
-                masks = masks.to(self._device)
-                targets = targets.to(self._device)
-
-                result = self._training_logic.train_step(videos, masks, targets)
+                result = self._training_logic.train_step_from_batch(batch)
                 self._train_step_count += 1
 
                 loss_val = result.loss.item()
@@ -126,9 +116,7 @@ class TrainingLoop:
                     self._tracker.log_scalar(
                         "train", "loss", loss_val, self._train_step_count
                     )
-                    self._tracker.log_scalar(
-                        "train",
-                        "target_std",
-                        result.latent_target.std(0).mean().item(),
-                        self._train_step_count,
-                    )
+                    for name, value in result.metrics.items():
+                        self._tracker.log_scalar(
+                            "train", name, value, self._train_step_count
+                        )
