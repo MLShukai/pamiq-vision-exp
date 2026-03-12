@@ -1,0 +1,10 @@
+# Training loop configuration for VAE
+trigger_every_n_frames: 64
+batch_size: 8
+num_epochs: 1
+checkpoint_interval_seconds: 300.0  # 5 minutes
+
+training_logic:
+  _target_: exp.trainers.vae.logic.create_vae_training_logic
+  lr: 1.0e-3
+  kl_weight: 1.0e-3

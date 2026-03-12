@@ -33,8 +33,8 @@ class ExperimentTracker:
                 )
                 self._logger = self._task.get_logger()
                 logger.info("ClearML tracking enabled")
-            except Exception:
-                logger.warning("ClearML initialization failed, tracking disabled")
+            except Exception as e:
+                logger.warning(f"ClearML initialization failed: {e}")
                 self._enabled = False
 
     def log_scalar(self, title: str, series: str, value: float, iteration: int) -> None:
