@@ -3,11 +3,11 @@ import time
 
 import torch
 import torch.nn as nn
-from torch import Tensor
 
 from exp.data.buffer import FIFOReplayBuffer
 from exp.data.loader import VideoFrameLoader
 from exp.data.stacking import FrameStacker
+from exp.tracking import ExperimentTracker
 from exp.trainers.vjepa.collator import VideoMultiBlockMaskCollator
 from exp.trainers.vjepa.logic import VJEPATrainingLogic
 from exp.training.checkpoint import CheckpointManager
@@ -35,6 +35,7 @@ class TrainingLoop:
         num_epochs: int = 1,
         checkpoint_interval_seconds: float = 300.0,
         device: torch.device = torch.device("cpu"),
+        tracker: ExperimentTracker | None = None,
     ) -> None:
         if trigger_every_n_frames <= 0:
             raise ValueError(
@@ -56,6 +57,8 @@ class TrainingLoop:
         self._num_epochs = num_epochs
         self._checkpoint_interval_seconds = checkpoint_interval_seconds
         self._device = device
+        self._tracker = tracker
+        self._train_step_count = 0
 
     def run(self, models: dict[str, nn.Module]) -> None:
         """Run the full training loop.
@@ -105,20 +108,27 @@ class TrainingLoop:
         for epoch in range(self._num_epochs):
             for step in range(num_steps):
                 batch = self._buffer.sample(self._batch_size)
-                # batch is [batch_size, C, T, H, W]
 
-                # Use collator to create masks
-                # The collator expects a list of video tensors
                 video_list = [batch[i] for i in range(batch.shape[0])]
                 videos, masks, targets = self._collator(video_list)
 
-                # Move to device
                 videos = videos.to(self._device)
                 masks = masks.to(self._device)
                 targets = targets.to(self._device)
 
                 result = self._training_logic.train_step(videos, masks, targets)
+                self._train_step_count += 1
 
-                logger.debug(
-                    f"Epoch {epoch}, Step {step}, Loss: {result.loss.item():.4f}"
-                )
+                loss_val = result.loss.item()
+                logger.debug(f"Epoch {epoch}, Step {step}, Loss: {loss_val:.4f}")
+
+                if self._tracker is not None:
+                    self._tracker.log_scalar(
+                        "train", "loss", loss_val, self._train_step_count
+                    )
+                    self._tracker.log_scalar(
+                        "train",
+                        "target_std",
+                        result.latent_target.std(0).mean().item(),
+                        self._train_step_count,
+                    )

@@ -10,6 +10,7 @@ from omegaconf import DictConfig
 
 from exp.models.components.patchfier import VideoPatchifier
 from exp.models.vjepa import Encoder, Predictor
+from exp.tracking import ExperimentTracker
 from exp.training.checkpoint import CheckpointManager
 from exp.training.loop import TrainingLoop
 
@@ -60,6 +61,12 @@ def main(cfg: DictConfig) -> None:
         ema_momentum=cfg.training.ema_momentum,
     )
 
+    tracker = ExperimentTracker(
+        enabled=cfg.get("clearml", {}).get("enabled", False),
+        project_name=cfg.get("clearml", {}).get("project_name", ""),
+        task_name=cfg.get("clearml", {}).get("task_name", cfg.experiment_name),
+    )
+
     checkpoint_manager = CheckpointManager(
         log_dir=Path(cfg.log_dir),
         experiment_name=cfg.experiment_name,
@@ -77,6 +84,7 @@ def main(cfg: DictConfig) -> None:
         num_epochs=cfg.training.num_epochs,
         checkpoint_interval_seconds=cfg.training.checkpoint_interval_seconds,
         device=device,
+        tracker=tracker,
     )
 
     # Run training
