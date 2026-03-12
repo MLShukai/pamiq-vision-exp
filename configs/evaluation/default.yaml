@@ -18,3 +18,9 @@ prediction:
 
 baseline:
   _target_: exp.evaluation.baseline.DownsamplingBaseline
+
+vae_baseline:
+  latent_dim: 256
+  num_epochs: 50
+  batch_size: 32
+  learning_rate: 1.0e-3

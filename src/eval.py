@@ -135,6 +135,26 @@ def main(cfg: DictConfig) -> None:
     baseline_mse = F.mse_loss(baseline_recon, target_frames).item()
     logger.info(f"Baseline - MAE: {baseline_mae:.6f}, MSE: {baseline_mse:.6f}")
 
+    # --- VAE Baseline ---
+    logger.info("Running VAE baseline evaluation...")
+    from exp.evaluation.vae_baseline import VAEBaselineEvaluator
+
+    vae_eval = VAEBaselineEvaluator(
+        in_channels=cfg.model.in_channels,
+        latent_dim=cfg.evaluation.get("vae_baseline", {}).get("latent_dim", 256),
+        device=device,
+    )
+    vae_eval.train_vae(
+        video_tensor,
+        num_epochs=cfg.evaluation.get("vae_baseline", {}).get("num_epochs", 50),
+        batch_size=cfg.evaluation.get("vae_baseline", {}).get("batch_size", 32),
+        lr=cfg.evaluation.get("vae_baseline", {}).get("learning_rate", 1e-3),
+    )
+    vae_result = vae_eval.evaluate(video_tensor)
+    logger.info(
+        f"VAE Baseline - MAE: {vae_result.recon_mae:.6f}, MSE: {vae_result.recon_mse:.6f}"
+    )
+
     logger.info("Evaluation complete.")
 
 
