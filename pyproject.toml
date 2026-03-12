@@ -59,7 +59,8 @@ exclude = [
   "**/node_modules",
   "**/__pycache__",
   "**/.venv",
-  "tests/"
+  "tests/",
+  "./data"
 ]
 reportMissingTypeStubs = false
 reportImplicitOverride = true
@@ -85,6 +86,7 @@ exclude = [
     ".venv",
     ".vscode",
     "build",
+    "./data",
     "dist",
     "node_modules",
     ".venv",
