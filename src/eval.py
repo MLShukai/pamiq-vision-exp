@@ -6,16 +6,10 @@ from pathlib import Path
 import hydra
 import torch
 import torch.nn.functional as F
+from hydra.utils import instantiate
 from omegaconf import DictConfig
 
-from exp.data.loader import VideoFrameLoader
-from exp.data.stacking import FrameStacker
-from exp.evaluation.baseline import DownsamplingBaseline
-from exp.evaluation.prediction import PredictionEvaluator
-from exp.evaluation.reconstruction import ReconstructionEvaluator
 from exp.models.components.patchfier import VideoPatchifier
-from exp.models.mingru import MinGRU
-from exp.models.vjepa import LightWeightDecoder, create_video_jepa
 from exp.training.checkpoint import CheckpointManager
 
 logger = logging.getLogger(__name__)
@@ -38,15 +32,7 @@ def main(cfg: DictConfig) -> None:
     tubelet_size = tuple(cfg.model.tubelet_size)
     n_tubelets = VideoPatchifier.compute_num_tubelets(video_shape, tubelet_size)
 
-    models = create_video_jepa(
-        video_shape=video_shape,
-        tubelet_size=tubelet_size,
-        in_channels=cfg.model.in_channels,
-        hidden_dim=cfg.model.hidden_dim,
-        embed_dim=cfg.model.embed_dim,
-        depth=cfg.model.depth,
-        num_heads=cfg.model.num_heads,
-    )
+    models = instantiate(cfg.model)
 
     encoder = models["context_encoder"]
     encoder = CheckpointManager.load_encoder(
@@ -54,20 +40,9 @@ def main(cfg: DictConfig) -> None:
     )
     encoder = encoder.to(device)
 
-    # Create data pipeline for evaluation
-    video_paths = [Path(p) for p in cfg.data.video_paths]
-    frame_loader = VideoFrameLoader(
-        video_paths=video_paths,
-        target_fps=cfg.data.target_fps,
-        target_size=tuple(cfg.data.target_size),
-        mean=tuple(cfg.data.mean),
-        std=tuple(cfg.data.std),
-        fade_duration=cfg.data.fade_duration,
-    )
-    frame_stacker = FrameStacker(
-        num_frames=cfg.data.num_frames,
-        stride=cfg.data.stride,
-    )
+    # Create data pipeline via instantiate
+    frame_loader = instantiate(cfg.data.frame_loader)
+    frame_stacker = instantiate(cfg.data.frame_stacker)
 
     # Collect all stacked videos
     logger.info("Collecting video frames...")
@@ -86,7 +61,10 @@ def main(cfg: DictConfig) -> None:
 
     # --- Reconstruction Evaluation ---
     logger.info("Running reconstruction evaluation...")
-    decoder = LightWeightDecoder(
+    from exp.evaluation.reconstruction import ReconstructionEvaluator
+
+    decoder = instantiate(
+        cfg.evaluation.reconstruction.decoder,
         n_tubelets=n_tubelets,
         tubelet_size=tubelet_size,
         embed_dim=cfg.model.embed_dim,
@@ -110,19 +88,20 @@ def main(cfg: DictConfig) -> None:
 
     # --- Future Prediction Evaluation ---
     logger.info("Running prediction evaluation...")
-    # Flatten features for sequence prediction
+    from exp.evaluation.prediction import PredictionEvaluator
+
     flat_features = features.flatten(1)  # [N, n_tubelets * embed_dim]
     feat_dim = flat_features.shape[1]
 
-    mingru = MinGRU(
+    predictor = instantiate(
+        cfg.evaluation.prediction.predictor,
         input_dim=feat_dim,
-        hidden_dim=cfg.evaluation.prediction.hidden_dim,
+        hidden_dim=feat_dim,  # match feature dim
         output_dim=feat_dim,
-        num_layers=cfg.evaluation.prediction.num_layers,
     ).to(device)
 
     pred_evaluator = PredictionEvaluator(
-        predictor=mingru,
+        predictor=predictor,
         horizons=list(cfg.evaluation.prediction.horizons),
         device=device,
     )
@@ -142,15 +121,15 @@ def main(cfg: DictConfig) -> None:
     # --- Baseline ---
     logger.info("Running baseline evaluation...")
     total_features = n_tubelets[0] * n_tubelets[1] * n_tubelets[2] * cfg.model.embed_dim
-    baseline = DownsamplingBaseline(
+    baseline = instantiate(
+        cfg.evaluation.baseline,
         target_feature_size=total_features,
         in_channels=cfg.model.in_channels,
     )
     baseline_features = baseline.downsample(video_tensor)
     baseline_recon = baseline.reconstruct(
-        baseline_features, target_size=tuple(cfg.data.target_size)
+        baseline_features, target_size=tuple(cfg.data.frame_loader.target_size)
     )
-    # Average over time for comparison
     target_frames = video_tensor.mean(dim=2)
     baseline_mae = F.l1_loss(baseline_recon, target_frames).item()
     baseline_mse = F.mse_loss(baseline_recon, target_frames).item()

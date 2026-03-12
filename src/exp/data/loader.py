@@ -84,7 +84,7 @@ class VideoFrameLoader:
 
     def __init__(
         self,
-        video_paths: list[Path],
+        video_paths: list[Path] | list[str],
         target_fps: float = 10.0,
         target_size: tuple[int, int] = (224, 224),
         mean: tuple[float, ...] = (0.485, 0.456, 0.406),
@@ -116,7 +116,7 @@ class VideoFrameLoader:
                 f"target_size dimensions must be positive, got {target_size}"
             )
 
-        self._video_paths = video_paths
+        self._video_paths = [Path(p) for p in video_paths]
         self._target_fps = target_fps
         self._target_size = target_size
         self._mean = mean

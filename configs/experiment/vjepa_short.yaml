@@ -10,8 +10,10 @@ model:
   num_heads: 6
 
 data:
-  num_frames: 8
-  buffer_max_size: 256
+  frame_stacker:
+    num_frames: 8
+  buffer:
+    max_size: 256
 
 training:
   trigger_every_n_frames: 32

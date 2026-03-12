@@ -3,5 +3,16 @@ trigger_every_n_frames: 64
 batch_size: 8
 num_epochs: 1
 checkpoint_interval_seconds: 300.0  # 5 minutes
-learning_rate: 1.0e-4
-weight_decay: 0.05
+ema_momentum: 0.996
+
+optimizer:
+  _target_: torch.optim.AdamW
+  _partial_: true
+  lr: 1.0e-4
+  weight_decay: 0.05
+
+collator:
+  _target_: exp.trainers.vjepa.collator.VideoMultiBlockMaskCollator
+
+training_logic:
+  _target_: exp.trainers.vjepa.logic.VJEPATrainingLogic
