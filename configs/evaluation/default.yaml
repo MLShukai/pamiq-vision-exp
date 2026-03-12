@@ -1,0 +1,14 @@
+# Evaluation configuration
+reconstruction:
+  num_epochs: 50
+  batch_size: 32
+  learning_rate: 1.0e-3
+
+prediction:
+  seq_len: 32
+  num_epochs: 50
+  batch_size: 32
+  learning_rate: 1.0e-3
+  horizons: [1, 2, 4, 8]
+  hidden_dim: 256
+  num_layers: 2

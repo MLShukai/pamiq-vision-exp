@@ -1,0 +1,10 @@
+# Data pipeline configuration
+video_paths: []  # Must be overridden
+target_fps: 10.0
+target_size: [224, 224]  # [H, W]
+mean: [0.485, 0.456, 0.406]
+std: [0.229, 0.224, 0.225]
+fade_duration: 1.0  # seconds
+num_frames: 16  # frames to stack (matches video_shape[0] / tubelet_size[0] * tubelet_size[0])
+stride: 1
+buffer_max_size: 1024

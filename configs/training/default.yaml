@@ -1,0 +1,7 @@
+# Training loop configuration
+trigger_every_n_frames: 64
+batch_size: 8
+num_epochs: 1
+checkpoint_interval_seconds: 300.0  # 5 minutes
+learning_rate: 1.0e-4
+weight_decay: 0.05

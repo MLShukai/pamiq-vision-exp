@@ -1,0 +1,10 @@
+defaults:
+  - model: vjepa
+  - data: default
+  - evaluation: default
+  - _self_
+
+experiment_name: "vjepa_eval"
+checkpoint_path: null  # Must be specified
+device: "cuda"
+seed: 42
