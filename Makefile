@@ -66,13 +66,3 @@ docker-down-volume:  ## Stop docker containers with removing volumes.
 
 docker-attach: ## Attach to development container
 	docker compose $(BASE_COMPOSE) exec dev bash
-
-# -----------------
-#  AIM Server
-# -----------------
-
-AIM_HOST ?= 0.0.0.0
-AIM_PORT ?= 43800
-
-aim:
-	uv run aim up --repo ./logs --host $(AIM_HOST) --port $(AIM_PORT)

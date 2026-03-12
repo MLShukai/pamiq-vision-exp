@@ -1,0 +1,19 @@
+# @package _global_
+
+# Short experiment for testing
+experiment_name: "vjepa_short"
+
+model:
+  hidden_dim: 384
+  embed_dim: 64
+  depth: 3
+  num_heads: 6
+
+data:
+  num_frames: 8
+  buffer_max_size: 256
+
+training:
+  trigger_every_n_frames: 32
+  batch_size: 4
+  checkpoint_interval_seconds: 60.0
