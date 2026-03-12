@@ -31,5 +31,21 @@ RUN echo 'eval "$(uv generate-shell-completion bash)"' >> ~/.bashrc \
 RUN curl -fsSL https://claude.ai/install.sh | bash \
 && echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 
+# Setup Claude Code permissions for autonomous development
+RUN mkdir -p ~/.claude && cat > ~/.claude/settings.json << 'SETTINGS'
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Edit(*)",
+      "Write(*)",
+      "Read(*)",
+      "WebSearch",
+      "WebFetch"
+    ]
+  }
+}
+SETTINGS
+
 # Console setup
 CMD [ "bash" ]
