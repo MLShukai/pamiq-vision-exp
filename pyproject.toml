@@ -62,7 +62,18 @@ exclude = [
   "tests/",
   "./data"
 ]
+# 型安全性
+reportMissingTypeArgument = "error"
+reportUnknownParameterType = "error"
+reportUnknownLambdaType = "error"
+# 型アノテーション
+reportMissingParameterType = "error"
+# スタブなしライブラリを許容
 reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+# Extra
 reportImplicitOverride = true
 reportPrivateUsage = "warning"
 
