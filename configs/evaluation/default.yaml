@@ -1,14 +1,26 @@
 # Evaluation configuration
 reconstruction:
+  decoder:
+    _target_: exp.models.vjepa.LightWeightDecoder
   num_epochs: 50
   batch_size: 32
   learning_rate: 1.0e-3
 
 prediction:
+  predictor:
+    _target_: exp.models.mingru.MinGRU
+    num_layers: 2
   seq_len: 32
   num_epochs: 50
   batch_size: 32
   learning_rate: 1.0e-3
   horizons: [1, 2, 4, 8]
-  hidden_dim: 256
-  num_layers: 2
+
+baseline:
+  _target_: exp.evaluation.baseline.DownsamplingBaseline
+
+vae_baseline:
+  latent_dim: 256
+  num_epochs: 50
+  batch_size: 32
+  learning_rate: 1.0e-3

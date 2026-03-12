@@ -5,15 +5,12 @@ from pathlib import Path
 
 import hydra
 import torch
+from hydra.utils import instantiate
 from omegaconf import DictConfig
 
-from exp.data.buffer import FIFOReplayBuffer
-from exp.data.loader import VideoFrameLoader
-from exp.data.stacking import FrameStacker
 from exp.models.components.patchfier import VideoPatchifier
-from exp.models.vjepa import Encoder, Predictor, create_video_jepa
-from exp.trainers.vjepa.collator import VideoMultiBlockMaskCollator
-from exp.trainers.vjepa.logic import VJEPATrainingLogic
+from exp.models.vjepa import Encoder, Predictor
+from exp.tracking import ExperimentTracker
 from exp.training.checkpoint import CheckpointManager
 from exp.training.loop import TrainingLoop
 
@@ -28,22 +25,8 @@ def main(cfg: DictConfig) -> None:
 
     logger.info(f"Starting experiment: {cfg.experiment_name}")
 
-    # Create model
-    video_shape = tuple(cfg.model.video_shape)
-    tubelet_size = tuple(cfg.model.tubelet_size)
-
-    models = create_video_jepa(
-        video_shape=video_shape,
-        tubelet_size=tubelet_size,
-        in_channels=cfg.model.in_channels,
-        hidden_dim=cfg.model.hidden_dim,
-        embed_dim=cfg.model.embed_dim,
-        depth=cfg.model.depth,
-        num_heads=cfg.model.num_heads,
-        predictor_hidden_dim=cfg.model.predictor_hidden_dim,
-        predictor_depth=cfg.model.predictor_depth,
-        predictor_num_heads=cfg.model.predictor_num_heads,
-    )
+    # Create model via instantiate (calls create_video_jepa)
+    models = instantiate(cfg.model)
 
     assert isinstance(models["context_encoder"], Encoder)
     assert isinstance(models["target_encoder"], Encoder)
@@ -52,38 +35,36 @@ def main(cfg: DictConfig) -> None:
     target_encoder = models["target_encoder"].to(device)
     predictor = models["predictor"].to(device)
 
-    # Create data pipeline
-    video_paths = [Path(p) for p in cfg.data.video_paths]
-    frame_loader = VideoFrameLoader(
-        video_paths=video_paths,
-        target_fps=cfg.data.target_fps,
-        target_size=tuple(cfg.data.target_size),
-        mean=tuple(cfg.data.mean),
-        std=tuple(cfg.data.std),
-        fade_duration=cfg.data.fade_duration,
-    )
-    frame_stacker = FrameStacker(
-        num_frames=cfg.data.num_frames,
-        stride=cfg.data.stride,
-    )
-    buffer = FIFOReplayBuffer(max_size=cfg.data.buffer_max_size)
+    # Create data pipeline via instantiate
+    frame_loader = instantiate(cfg.data.frame_loader)
+    frame_stacker = instantiate(cfg.data.frame_stacker)
+    buffer = instantiate(cfg.data.buffer)
 
     # Create training components
+    video_shape = tuple(cfg.model.video_shape)
+    tubelet_size = tuple(cfg.model.tubelet_size)
     n_tubelets = VideoPatchifier.compute_num_tubelets(video_shape, tubelet_size)
-    collator = VideoMultiBlockMaskCollator(num_tubelets=n_tubelets)
 
-    optimizer = torch.optim.AdamW(
+    collator = instantiate(cfg.training.collator, num_tubelets=n_tubelets)
+
+    optimizer_factory = instantiate(cfg.training.optimizer)
+    optimizer = optimizer_factory(
         list(context_encoder.parameters()) + list(predictor.parameters()),
-        lr=cfg.training.learning_rate,
-        weight_decay=cfg.training.weight_decay,
     )
 
-    training_logic = VJEPATrainingLogic(
+    training_logic = instantiate(
+        cfg.training.training_logic,
         context_encoder=context_encoder,
         target_encoder=target_encoder,
         predictor=predictor,
         optimizer=optimizer,
-        ema_momentum=cfg.model.ema_momentum,
+        ema_momentum=cfg.training.ema_momentum,
+    )
+
+    tracker = ExperimentTracker(
+        enabled=cfg.get("clearml", {}).get("enabled", False),
+        project_name=cfg.get("clearml", {}).get("project_name", ""),
+        task_name=cfg.get("clearml", {}).get("task_name", cfg.experiment_name),
     )
 
     checkpoint_manager = CheckpointManager(
@@ -103,6 +84,7 @@ def main(cfg: DictConfig) -> None:
         num_epochs=cfg.training.num_epochs,
         checkpoint_interval_seconds=cfg.training.checkpoint_interval_seconds,
         device=device,
+        tracker=tracker,
     )
 
     # Run training

@@ -1,8 +1,4 @@
-"""V-JEPA Training Logic - PAMIQ Core independent implementation.
-
-This module provides the core training logic for Video Joint Embedding
-Predictive Architecture (V-JEPA) without any dependency on PAMIQ Core.
-"""
+"""V-JEPA Training Logic."""
 
 from dataclasses import dataclass
 
@@ -35,7 +31,7 @@ class VJEPALossResult:
 
 
 class VJEPATrainingLogic:
-    """Core training logic for V-JEPA, independent of PAMIQ Core.
+    """Core training logic for V-JEPA.
 
     This class encapsulates the V-JEPA training algorithm including:
     1. Loss computation using L1 distance between predicted and target representations
