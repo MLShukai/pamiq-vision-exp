@@ -1,0 +1,22 @@
+# @package _global_
+
+# Short experiment for VAE testing
+experiment_name: "vae_short"
+encoder_key: "encoder"
+
+model:
+  _target_: exp.models.vae.create_vae
+  embed_dim: 64
+
+data:
+  frame_stacker:
+    num_frames: 8
+  buffer:
+    max_size: 256
+
+training:
+  trigger_every_n_frames: 32
+  batch_size: 4
+  checkpoint_interval_seconds: 60.0
+  training_logic:
+    _target_: exp.trainers.vae.logic.create_vae_training_logic
