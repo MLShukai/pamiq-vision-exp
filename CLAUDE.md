@@ -58,3 +58,19 @@ class Example:
         self._dim = dim  # private
         self._layer = nn.Linear(dim, dim)  # private
 ```
+
+## Git運用
+
+### ブランチ
+
+- `main`: 開発の主軸。
+- 作業用ブランチの命名規則: `<種別>/<日付>/<内容>`
+  - 例: `feature/20240101/add-replay-buffer`, `fix/20240302/loss-calculation`
+  - 種別: `feature`, `fix`, `refactor`, `docs`
+
+### コミットメッセージ
+
+`<種別>(<スコープ>): <内容>` の形式に従う。
+
+- 種別: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+- スコープ: モジュール名、機能名、ファイルなどの単位
