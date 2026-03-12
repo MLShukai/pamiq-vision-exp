@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from exp.data.buffer import ReplayBuffer
+from exp.data.buffer import FIFOReplayBuffer
 from exp.data.loader import VideoFrameLoader
 from exp.data.stacking import FrameStacker
 from exp.trainers.vjepa.collator import VideoMultiBlockMaskCollator
@@ -26,7 +26,7 @@ class TrainingLoop:
         self,
         frame_loader: VideoFrameLoader,
         frame_stacker: FrameStacker,
-        buffer: ReplayBuffer,
+        buffer: FIFOReplayBuffer,
         training_logic: VJEPATrainingLogic,
         collator: VideoMultiBlockMaskCollator,
         checkpoint_manager: CheckpointManager,

@@ -1,4 +1,4 @@
-from .buffer import FIFOReplayBuffer, ReplayBuffer
+from .buffer import FIFOReplayBuffer
 from .stacking import FrameStacker
 
-__all__ = ["FIFOReplayBuffer", "FrameStacker", "ReplayBuffer"]
+__all__ = ["FIFOReplayBuffer", "FrameStacker"]

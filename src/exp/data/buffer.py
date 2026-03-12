@@ -1,39 +1,10 @@
-from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import override
 
 import torch
 from torch import Tensor
 
 
-class ReplayBuffer(ABC):
-    """Abstract base class for replay buffers."""
-
-    @abstractmethod
-    def add(self, item: Tensor) -> None:
-        """Add an item to the buffer."""
-        ...
-
-    @abstractmethod
-    def sample(self, batch_size: int) -> Tensor:
-        """Sample a random batch from the buffer."""
-        ...
-
-    @abstractmethod
-    def __len__(self) -> int: ...
-
-    @abstractmethod
-    def save(self, path: Path) -> None:
-        """Save buffer state to disk."""
-        ...
-
-    @abstractmethod
-    def load(self, path: Path) -> None:
-        """Load buffer state from disk."""
-        ...
-
-
-class FIFOReplayBuffer(ReplayBuffer):
+class FIFOReplayBuffer:
     """FIFO replay buffer with pre-allocated tensor storage."""
 
     def __init__(self, max_size: int) -> None:
@@ -52,7 +23,6 @@ class FIFOReplayBuffer(ReplayBuffer):
         self._write_index = 0
         self._current_size = 0
 
-    @override
     def add(self, item: Tensor) -> None:
         """Add an item to the buffer.
 
@@ -69,7 +39,6 @@ class FIFOReplayBuffer(ReplayBuffer):
         self._write_index += 1
         self._current_size = min(self._current_size + 1, self._max_size)
 
-    @override
     def sample(self, batch_size: int) -> Tensor:
         """Sample a random batch from the buffer.
 
@@ -93,7 +62,6 @@ class FIFOReplayBuffer(ReplayBuffer):
         indices = torch.randint(0, self._current_size, (batch_size,))
         return self._storage[indices]
 
-    @override
     def __len__(self) -> int:
         return self._current_size
 
@@ -102,7 +70,6 @@ class FIFOReplayBuffer(ReplayBuffer):
         """Whether the buffer has reached max capacity."""
         return self._current_size >= self._max_size
 
-    @override
     def save(self, path: Path) -> None:
         """Save buffer state to disk.
 
@@ -118,7 +85,6 @@ class FIFOReplayBuffer(ReplayBuffer):
         }
         torch.save(state, path / "buffer.pt")
 
-    @override
     def load(self, path: Path) -> None:
         """Load buffer state from disk.
 
