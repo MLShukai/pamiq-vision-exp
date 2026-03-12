@@ -2,6 +2,8 @@
 
 > 私が pamiq-core を使って開発する際のリファレンスドキュメント
 
+元ドキュメント: https://mlshukai.github.io/pamiq-core/
+
 ## 📑 目次
 
 01. [基本コンセプト](#%E5%9F%BA%E6%9C%AC%E3%82%B3%E3%83%B3%E3%82%BB%E3%83%97%E3%83%88)
