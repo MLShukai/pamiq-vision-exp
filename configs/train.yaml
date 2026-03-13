@@ -10,6 +10,5 @@ device: "cuda"
 seed: 42
 
 clearml:
-  enabled: false
   project_name: "pamiq-vision-exp"
   task_name: ${experiment_name}

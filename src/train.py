@@ -40,7 +40,6 @@ def main(cfg: DictConfig) -> None:
     training_logic = instantiate(cfg.training.training_logic, **models)
 
     tracker = ExperimentTracker(
-        enabled=cfg.get("clearml", {}).get("enabled", False),
         project_name=cfg.get("clearml", {}).get("project_name", ""),
         task_name=cfg.get("clearml", {}).get("task_name", cfg.experiment_name),
     )
