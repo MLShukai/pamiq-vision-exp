@@ -23,3 +23,7 @@ prediction:
 
 baseline:
   _target_: exp.evaluation.baseline.DownsamplingBaseline
+  video_shape: ${model.video_shape}
+  tubelet_size: ${model.tubelet_size}
+  embed_dim: ${model.embed_dim}
+  in_channels: ${model.in_channels}

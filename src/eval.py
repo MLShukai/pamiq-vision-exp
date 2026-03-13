@@ -5,11 +5,9 @@ from pathlib import Path
 
 import hydra
 import torch
-import torch.nn.functional as F
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 
-from exp.evaluation.baseline import DownsamplingBaseline
 from exp.evaluation.prediction import PredictionEvaluator
 from exp.evaluation.reconstruction import ReconstructionEvaluator
 from exp.training.checkpoint import CheckpointManager
@@ -122,19 +120,69 @@ def main(cfg: DictConfig) -> None:
     # --- Downsampling Baseline ---
     if cfg.evaluation.get("baseline") is not None:
         logger.info("Running downsampling baseline...")
-        flat_feat_size = features.flatten(1).shape[1]
-        baseline = DownsamplingBaseline(
-            target_feature_size=flat_feat_size,
-            in_channels=cfg.model.in_channels,
-        )
-        baseline_features = baseline.downsample(video_tensor)
-        baseline_recon = baseline.reconstruct(
-            baseline_features, target_size=tuple(cfg.data.frame_loader.target_size)
-        )
-        target_frames = video_tensor.mean(dim=2)
-        baseline_mae = F.l1_loss(baseline_recon, target_frames).item()
-        baseline_mse = F.mse_loss(baseline_recon, target_frames).item()
-        logger.info(f"Baseline - MAE: {baseline_mae:.6f}, MSE: {baseline_mse:.6f}")
+        baseline = instantiate(cfg.evaluation.baseline)
+
+        # Encode with baseline (same loop as main encoder)
+        baseline_features_list = []
+        with torch.no_grad():
+            for i in range(0, len(video_tensor), batch_size):
+                b = video_tensor[i : i + batch_size]
+                feat = baseline(b)
+                baseline_features_list.append(feat)
+        baseline_features = torch.cat(baseline_features_list, dim=0)
+        logger.info(f"Baseline features shape: {baseline_features.shape}")
+
+        # Run reconstruction evaluation on baseline features
+        if cfg.evaluation.get("reconstruction") is not None:
+            baseline_decoder = instantiate(
+                cfg.evaluation.reconstruction.decoder,
+                _convert_="partial",
+            )
+            baseline_recon_eval = ReconstructionEvaluator(
+                baseline, baseline_decoder, device
+            )
+            baseline_recon_eval.train_decoder(
+                baseline_features,
+                video_tensor,
+                num_epochs=cfg.evaluation.reconstruction.num_epochs,
+                batch_size=cfg.evaluation.reconstruction.batch_size,
+                lr=cfg.evaluation.reconstruction.learning_rate,
+            )
+            baseline_recon_result = baseline_recon_eval.evaluate(
+                baseline_features, video_tensor
+            )
+            logger.info(
+                f"Baseline Reconstruction - MAE: {baseline_recon_result.mae:.6f}, "
+                f"MSE: {baseline_recon_result.mse:.6f}"
+            )
+
+        # Run prediction evaluation on baseline features
+        if cfg.evaluation.get("prediction") is not None:
+            baseline_flat = baseline_features.flatten(1)
+            baseline_feat_dim = baseline_flat.shape[1]
+            baseline_predictor = instantiate(
+                cfg.evaluation.prediction.predictor,
+                input_dim=baseline_feat_dim,
+                hidden_dim=baseline_feat_dim,
+                output_dim=baseline_feat_dim,
+            )
+            baseline_pred_eval = PredictionEvaluator(
+                predictor=baseline_predictor,
+                horizons=list(cfg.evaluation.prediction.horizons),
+                device=device,
+            )
+            baseline_pred_eval.train_predictor(
+                baseline_flat,
+                seq_len=cfg.evaluation.prediction.seq_len,
+                num_epochs=cfg.evaluation.prediction.num_epochs,
+                batch_size=cfg.evaluation.prediction.batch_size,
+                lr=cfg.evaluation.prediction.learning_rate,
+            )
+            baseline_pred_result = baseline_pred_eval.evaluate(
+                baseline_flat, seq_len=cfg.evaluation.prediction.seq_len
+            )
+            for horizon, error in baseline_pred_result.horizon_errors.items():
+                logger.info(f"Baseline Prediction horizon {horizon} - MAE: {error:.6f}")
 
     logger.info("Evaluation complete.")
 

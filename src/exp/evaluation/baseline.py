@@ -1,48 +1,52 @@
+from typing import override
+
+import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
+from exp.models.components.patchfier import VideoPatchifier
+from exp.utils import size_3d
 
-class DownsamplingBaseline:
-    """Baseline that uses simple downsampling for comparison.
 
-    Downsamples video frames to match the byte size of encoder output,
-    providing a fair comparison point.
+class DownsamplingBaseline(nn.Module):
+    """Baseline encoder that uses simple spatial downsampling.
+
+    Matches the encoder interface: input [B, C, T, H, W] -> output [B, n_tubelets_total, embed_dim].
+    No learnable parameters; provides a deterministic compression baseline.
     """
 
     def __init__(
         self,
-        target_feature_size: int,
+        video_shape: tuple[int, int, int],
+        tubelet_size: size_3d,
+        embed_dim: int,
         in_channels: int = 3,
     ) -> None:
-        """Initialize downsampling baseline.
-
-        Args:
-            target_feature_size: Total number of feature values to match
-                (n_tubelets * embed_dim from encoder).
-            in_channels: Number of input channels.
-        """
-        self._target_feature_size = target_feature_size
+        super().__init__()
+        n_tubelets = VideoPatchifier.compute_num_tubelets(video_shape, tubelet_size)
+        self._n_tubelets_total = n_tubelets[0] * n_tubelets[1] * n_tubelets[2]
+        self._embed_dim = embed_dim
         self._in_channels = in_channels
-        # Compute spatial size for downsampled representation
-        # target_feature_size = C * pixels_per_frame
+
+        target_feature_size = self._n_tubelets_total * embed_dim
         pixels_per_channel = target_feature_size // in_channels
         self._target_spatial = max(round(pixels_per_channel**0.5), 1)
 
-    def downsample(self, videos: Tensor) -> Tensor:
-        """Downsample videos to match target byte size.
+    @override
+    def forward(self, video: Tensor, masks: Tensor | None = None) -> Tensor:
+        """Encode video by spatial downsampling.
 
         Args:
-            videos: Input videos [N, C, T, H, W] or frames [N, C, H, W]
+            video: Input video [B, C, T, H, W].
+            masks: Ignored (accepted for interface compatibility).
 
         Returns:
-            Downsampled representation [N, target_feature_size]
+            Features [B, n_tubelets_total, embed_dim].
         """
-        if videos.dim() == 5:
-            # Average over time, then resize spatial
-            frames = videos.mean(dim=2)  # [N, C, H, W]
-        else:
-            frames = videos
+        # Average over time dimension
+        frames = video.mean(dim=2)  # [B, C, H, W]
 
+        # Downsample spatially
         downsampled = F.interpolate(
             frames,
             size=(self._target_spatial, self._target_spatial),
@@ -50,25 +54,14 @@ class DownsamplingBaseline:
             align_corners=False,
         )
 
-        return downsampled.flatten(1)  # [N, C * target_spatial^2]
+        # Flatten and reshape to match encoder output
+        flat = downsampled.flatten(1)  # [B, C * spatial^2]
+        target_size = self._n_tubelets_total * self._embed_dim
 
-    def reconstruct(self, features: Tensor, target_size: tuple[int, int]) -> Tensor:
-        """Reconstruct by upsampling back to original spatial size.
+        # Pad or truncate to exact target size
+        if flat.shape[1] < target_size:
+            flat = F.pad(flat, (0, target_size - flat.shape[1]))
+        elif flat.shape[1] > target_size:
+            flat = flat[:, :target_size]
 
-        Args:
-            features: Downsampled features [N, feat_dim]
-            target_size: Target spatial size (H, W)
-
-        Returns:
-            Reconstructed frames [N, C, H, W]
-        """
-        n = features.shape[0]
-        spatial = self._target_spatial
-        frames = features.reshape(n, self._in_channels, spatial, spatial)
-
-        return F.interpolate(
-            frames,
-            size=target_size,
-            mode="bilinear",
-            align_corners=False,
-        )
+        return flat.reshape(-1, self._n_tubelets_total, self._embed_dim)
