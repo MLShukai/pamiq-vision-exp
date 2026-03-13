@@ -1,4 +1,6 @@
 # Evaluation configuration
+encoding_batch_size: 32
+
 reconstruction:
   decoder:
     _target_: exp.models.vjepa.LightWeightDecoder

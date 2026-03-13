@@ -58,7 +58,7 @@ def main(cfg: DictConfig) -> None:
     # --- Encode dataset ---
     encoder.eval()
     features_list = []
-    batch_size = cfg.evaluation.reconstruction.batch_size
+    batch_size = cfg.evaluation.encoding_batch_size
     with torch.no_grad():
         for i in range(0, len(video_tensor), batch_size):
             batch = video_tensor[i : i + batch_size].to(device)
@@ -68,7 +68,7 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Encoded features shape: {features.shape}")
 
     # --- Reconstruction Evaluation ---
-    if "reconstruction" in cfg.evaluation:
+    if cfg.evaluation.get("reconstruction") is not None:
         logger.info("Running reconstruction evaluation...")
         decoder = instantiate(
             cfg.evaluation.reconstruction.decoder,
@@ -89,7 +89,7 @@ def main(cfg: DictConfig) -> None:
         )
 
     # --- Future Prediction Evaluation ---
-    if "prediction" in cfg.evaluation:
+    if cfg.evaluation.get("prediction") is not None:
         logger.info("Running prediction evaluation...")
         flat_features = features.flatten(1)  # [N, feat_dim]
         feat_dim = flat_features.shape[1]
@@ -120,7 +120,7 @@ def main(cfg: DictConfig) -> None:
             logger.info(f"Prediction horizon {horizon} - MAE: {error:.6f}")
 
     # --- Downsampling Baseline ---
-    if "baseline" in cfg.evaluation:
+    if cfg.evaluation.get("baseline") is not None:
         logger.info("Running downsampling baseline...")
         flat_feat_size = features.flatten(1).shape[1]
         baseline = DownsamplingBaseline(
