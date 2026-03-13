@@ -1,12 +1,11 @@
-# Evaluation configuration
 encoding_batch_size: 32
 
 reconstruction:
   decoder:
     _target_: exp.models.vjepa.LightWeightDecoder
-    n_tubelets: null  # Must be set per model
-    tubelet_size: ${model.tubelet_size}
-    embed_dim: ${model.embed_dim}
+    n_tubelets: null
+    tubelet_size: ${shared.tubelet_size}
+    embed_dim: ${shared.embed_dim}
   num_epochs: 50
   batch_size: 32
   learning_rate: 1.0e-3
@@ -23,7 +22,7 @@ prediction:
 
 baseline:
   _target_: exp.evaluation.baseline.create_downsampling_baseline
-  video_shape: ${model.video_shape}
-  tubelet_size: ${model.tubelet_size}
-  embed_dim: ${model.embed_dim}
-  in_channels: ${model.in_channels}
+  video_shape: ${shared.video_shape}
+  tubelet_size: ${shared.tubelet_size}
+  embed_dim: ${shared.embed_dim}
+  in_channels: ${shared.in_channels}

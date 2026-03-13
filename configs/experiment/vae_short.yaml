@@ -4,9 +4,11 @@
 experiment_name: "vae_short"
 encoder_key: "encoder"
 
+shared:
+  embed_dim: 64
+
 model:
   _target_: exp.models.vae.create_vae
-  embed_dim: 64
 
 data:
   frame_stacker:

@@ -10,7 +10,10 @@ from omegaconf import DictConfig
 
 from exp.evaluation.prediction import PredictionEvaluator
 from exp.evaluation.reconstruction import ReconstructionEvaluator
+from exp.oc_resolvers import register_custom_resolvers
 from exp.training.checkpoint import CheckpointManager
+
+register_custom_resolvers()
 
 logger = logging.getLogger(__name__)
 

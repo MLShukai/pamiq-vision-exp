@@ -9,9 +9,12 @@ import torch.nn as nn
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 
+from exp.oc_resolvers import register_custom_resolvers
 from exp.tracking import ExperimentTracker
 from exp.training.checkpoint import CheckpointManager
 from exp.training.loop import TrainingLoop
+
+register_custom_resolvers()
 
 logger = logging.getLogger(__name__)
 
