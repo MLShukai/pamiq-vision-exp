@@ -1,13 +1,12 @@
-# Training loop configuration
+training_logic:
+  _target_: exp.trainers.vjepa.logic.create_vjepa_training_logic
+  video_shape: ${shared.video_shape}
+  tubelet_size: ${shared.tubelet_size}
+  lr: 1.0e-4
+  weight_decay: 0.05
+  ema_momentum: 0.996
+
 trigger_every_n_frames: 64
 batch_size: 8
 num_epochs: 1
 checkpoint_interval_seconds: 300.0  # 5 minutes
-
-training_logic:
-  _target_: exp.trainers.vjepa.logic.create_vjepa_training_logic
-  video_shape: ${model.video_shape}
-  tubelet_size: ${model.tubelet_size}
-  lr: 1.0e-4
-  weight_decay: 0.05
-  ema_momentum: 0.996

@@ -3,9 +3,11 @@
 # Short experiment for testing
 experiment_name: "vjepa_short"
 
+shared:
+  embed_dim: 64
+
 model:
   hidden_dim: 384
-  embed_dim: 64
   depth: 3
   num_heads: 6
 
@@ -20,5 +22,5 @@ training:
   batch_size: 4
   checkpoint_interval_seconds: 60.0
   training_logic:
-    video_shape: ${model.video_shape}
-    tubelet_size: ${model.tubelet_size}
+    video_shape: ${shared.video_shape}
+    tubelet_size: ${shared.tubelet_size}
