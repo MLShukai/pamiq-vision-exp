@@ -6,9 +6,8 @@ from exp.evaluation.reconstruction import ReconstructionEvaluator, Reconstructio
 
 class SimpleEncoder(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: [B, C, T, H, W] -> flatten to [B, 1, C*T*H*W]
         b = x.shape[0]
-        return x.reshape(b, 1, -1)[:, :, :8]  # just take first 8 features
+        return x.reshape(b, -1)[:, :8]  # [B, 8]
 
 
 class SimpleDecoder(nn.Module):
@@ -32,7 +31,7 @@ class TestReconstructionEvaluator:
         evaluator = ReconstructionEvaluator(encoder, decoder)
         videos = torch.randn(10, 3, 2, 4, 4)
         features = evaluator.encode_dataset(videos, batch_size=4)
-        assert features.shape == (10, 1, 8)
+        assert features.shape == (10, 8)
 
     def test_train_decoder_returns_losses(self):
         encoder = SimpleEncoder()
