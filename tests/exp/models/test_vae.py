@@ -45,12 +45,11 @@ class TestCreateVAE:
         assert isinstance(models["encoder"], VAEEncoder)
         assert isinstance(models["decoder"], VAEDecoder)
 
-    def test_latent_dim_from_config(self):
+    def test_encoder_output_shape(self):
         models = create_vae(latent_dim=512)
         encoder = models["encoder"]
         video = torch.randn(1, 3, 4, 32, 32)
         out = encoder(video)
-        # n_tubelets = (4//2, 32//8, 32//8) = (2, 4, 4), latent_dim = 2*4*4*16 = 512
         assert out.shape == (1, 512)
 
     def test_gradient_flows(self):
