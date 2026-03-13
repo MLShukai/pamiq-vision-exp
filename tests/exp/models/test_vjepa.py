@@ -175,6 +175,24 @@ class TestLightWeightDecoder:
             expected_width,
         )
 
+    def test_forward_with_upsample(self):
+        n_tubelets = (2, 2, 2)
+        tubelet_size = (2, 8, 8)
+        embed_dim = 64
+        decoder = LightWeightDecoder(
+            n_tubelets=n_tubelets,
+            tubelet_size=tubelet_size,
+            embed_dim=embed_dim,
+            upsample=2,
+        )
+
+        n_total = 2 * 2 * 2
+        features = torch.randn(1, n_total * embed_dim)
+        output = decoder(features)
+
+        # Upsampled tubelets: (4, 4, 4), video = tubelets * tubelet_size
+        assert output.shape == (1, 3, 4 * 2, 4 * 8, 4 * 8)
+
     def test_upsampled_n_tubelets_property(self):
         decoder = LightWeightDecoder(
             n_tubelets=(2, 2, 2), tubelet_size=(2, 8, 8), embed_dim=64, upsample=2

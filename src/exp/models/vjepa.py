@@ -233,7 +233,12 @@ class Predictor(nn.Module):
 
 
 class LightWeightDecoder(nn.Module):
-    """Lightweight decoder for video reconstruction from tubelet embeddings."""
+    """Lightweight decoder for video reconstruction from tubelet embeddings.
+
+    Upsamples the tubelet grid via transposed 3D convolution, projects
+    each embedding through a linear layer, then reconstructs pixel-space
+    video via :class:`VideoPatchDecoder`.
+    """
 
     def __init__(
         self,
@@ -252,11 +257,11 @@ class LightWeightDecoder(nn.Module):
             embed_dim: Dimension of input embeddings.
             out_channels: Number of output video channels.
             init_std: Standard deviation for weight initialization.
-            upsample: Upsampling factor for each dimension.
+            upsample: Upsampling factor for each dimension (scalar or 3-tuple).
         """
         super().__init__()
         upsample = size_3d_to_tuple(upsample)
-        if any(up < 1 for up in upsample):
+        if any(u < 1 for u in upsample):
             raise ValueError("upsample must be >= 1 in all dimensions.")
 
         self._n_tubelets = n_tubelets
@@ -268,14 +273,8 @@ class LightWeightDecoder(nn.Module):
         )
         self._proj = nn.Linear(embed_dim, embed_dim)
 
-        upsampled_n_tubelets = (
-            n_tubelets[0] * upsample[0],
-            n_tubelets[1] * upsample[1],
-            n_tubelets[2] * upsample[2],
-        )
-
         self._video_decoder = VideoPatchDecoder(
-            upsampled_n_tubelets, tubelet_size, embed_dim, out_channels
+            self.upsampled_n_tubelets, tubelet_size, embed_dim, out_channels
         )
 
         for layer in [self._upsample_conv, self._proj]:
@@ -283,12 +282,10 @@ class LightWeightDecoder(nn.Module):
 
     @property
     def upsampled_n_tubelets(self) -> tuple[int, int, int]:
-        """Get number of tubelets after upsampling."""
-        return (
-            self._n_tubelets[0] * self._upsample[0],
-            self._n_tubelets[1] * self._upsample[1],
-            self._n_tubelets[2] * self._upsample[2],
-        )
+        """Number of tubelets after upsampling."""
+        nt, nh, nw = self._n_tubelets
+        ut, uh, uw = self._upsample
+        return (nt * ut, nh * uh, nw * uw)
 
     @override
     def forward(self, features: Tensor) -> Tensor:
@@ -300,20 +297,21 @@ class LightWeightDecoder(nn.Module):
         Returns:
             Reconstructed video [batch, channels, time, height, width].
         """
+        batch_size = features.shape[0]
         n_t, n_h, n_w = self._n_tubelets
-        n_total = n_t * n_h * n_w
 
-        # Reshape flat features to tubelet structure
-        latents = features.reshape(-1, n_total, self._embed_dim)
+        # [B, feature_size] -> [B, n_tubelets, embed_dim]
+        x = features.reshape(batch_size, n_t * n_h * n_w, self._embed_dim)
 
-        x = latents.transpose(-1, -2)
-        x = x.reshape(*x.shape[:2], n_t, n_h, n_w)
+        # Rearrange to 3D grid: [B, embed_dim, n_t, n_h, n_w]
+        x = x.transpose(-1, -2).reshape(batch_size, self._embed_dim, n_t, n_h, n_w)
+
+        # Upsample via transposed convolution, then flatten back to sequence
         x = F.gelu(self._upsample_conv(x))
-        x = x.flatten(2).transpose(-1, -2)
-        x = F.gelu(self._proj(x))
-        x = self._video_decoder(x)
+        x = x.flatten(2).transpose(-1, -2)  # [B, n_tubelets_up, embed_dim]
 
-        return x
+        x = F.gelu(self._proj(x))
+        return self._video_decoder(x)
 
 
 def create_video_jepa(
