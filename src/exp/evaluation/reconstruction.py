@@ -44,7 +44,7 @@ class ReconstructionEvaluator:
             batch_size: Batch size for encoding
 
         Returns:
-            Encoded features [N, n_tubelets, embed_dim]
+            Encoded features [N, feature_size]
         """
         self._encoder.eval()
         features_list = []
@@ -67,7 +67,7 @@ class ReconstructionEvaluator:
         """Train decoder on frozen features.
 
         Args:
-            features: Encoded features [N, n_tubelets, embed_dim]
+            features: Encoded features [N, feature_size]
             targets: Original videos [N, C, T, H, W]
             num_epochs: Number of training epochs
             batch_size: Training batch size
@@ -116,7 +116,7 @@ class ReconstructionEvaluator:
         """Evaluate reconstruction quality.
 
         Args:
-            features: Encoded features [N, n_tubelets, embed_dim]
+            features: Encoded features [N, feature_size]
             targets: Original videos [N, C, T, H, W]
             batch_size: Batch size for evaluation
 

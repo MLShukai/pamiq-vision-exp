@@ -89,8 +89,7 @@ def main(cfg: DictConfig) -> None:
     # --- Future Prediction Evaluation ---
     if cfg.evaluation.get("prediction") is not None:
         logger.info("Running prediction evaluation...")
-        flat_features = features.flatten(1)  # [N, feat_dim]
-        feat_dim = flat_features.shape[1]
+        feat_dim = features.shape[1]
 
         predictor = instantiate(
             cfg.evaluation.prediction.predictor,
@@ -105,14 +104,14 @@ def main(cfg: DictConfig) -> None:
             device=device,
         )
         pred_evaluator.train_predictor(
-            flat_features,
+            features,
             seq_len=cfg.evaluation.prediction.seq_len,
             num_epochs=cfg.evaluation.prediction.num_epochs,
             batch_size=cfg.evaluation.prediction.batch_size,
             lr=cfg.evaluation.prediction.learning_rate,
         )
         pred_result = pred_evaluator.evaluate(
-            flat_features, seq_len=cfg.evaluation.prediction.seq_len
+            features, seq_len=cfg.evaluation.prediction.seq_len
         )
         for horizon, error in pred_result.horizon_errors.items():
             logger.info(f"Prediction horizon {horizon} - MAE: {error:.6f}")
@@ -158,8 +157,7 @@ def main(cfg: DictConfig) -> None:
 
         # Run prediction evaluation on baseline features
         if cfg.evaluation.get("prediction") is not None:
-            baseline_flat = baseline_features.flatten(1)
-            baseline_feat_dim = baseline_flat.shape[1]
+            baseline_feat_dim = baseline_features.shape[1]
             baseline_predictor = instantiate(
                 cfg.evaluation.prediction.predictor,
                 input_dim=baseline_feat_dim,
@@ -172,14 +170,14 @@ def main(cfg: DictConfig) -> None:
                 device=device,
             )
             baseline_pred_eval.train_predictor(
-                baseline_flat,
+                baseline_features,
                 seq_len=cfg.evaluation.prediction.seq_len,
                 num_epochs=cfg.evaluation.prediction.num_epochs,
                 batch_size=cfg.evaluation.prediction.batch_size,
                 lr=cfg.evaluation.prediction.learning_rate,
             )
             baseline_pred_result = baseline_pred_eval.evaluate(
-                baseline_flat, seq_len=cfg.evaluation.prediction.seq_len
+                baseline_features, seq_len=cfg.evaluation.prediction.seq_len
             )
             for horizon, error in baseline_pred_result.horizon_errors.items():
                 logger.info(f"Baseline Prediction horizon {horizon} - MAE: {error:.6f}")
