@@ -53,17 +53,17 @@ make docker-down     # コンテナの停止
 基本コマンド:
 
 ```bash
-python src/train.py data.frame_loader.video_paths=[path1.mp4,path2.mp4]
+python src/train.py data.frame_loader.video_list_path=path/to/videos.txt
 ```
 
 実験設定を指定して実行:
 
 ```bash
 # V-JEPA（軽量設定）
-python src/train.py experiment=vjepa_short data.frame_loader.video_paths=[...]
+python src/train.py experiment=vjepa_short data.frame_loader.video_list_path=path/to/videos.txt
 
 # VAE
-python src/train.py experiment=vae_short data.frame_loader.video_paths=[...]
+python src/train.py experiment=vae_short data.frame_loader.video_list_path=path/to/videos.txt
 ```
 
 ### 主な設定グループ
@@ -77,7 +77,7 @@ python src/train.py experiment=vae_short data.frame_loader.video_paths=[...]
 
 チェックポイントは `logs/<experiment_name>/<timestamp>/checkpoints/` に保存される。
 
-ClearML による実験管理を有効にするには `clearml.enabled=true` を指定する。
+ClearML が利用可能な場合、実験管理が自動的に有効になる。
 
 ## 評価
 
@@ -86,10 +86,10 @@ ClearML による実験管理を有効にするには `clearml.enabled=true` を
 ```bash
 python src/eval.py \
   checkpoint_path=logs/.../checkpoints/300.ckpt \
-  data.frame_loader.video_paths=[...]
+  data.frame_loader.video_list_path=path/to/videos.txt
 ```
 
-`checkpoint_path` は必須パラメータである。
+`checkpoint_path` は必須パラメータである。特定の評価をスキップするには null を指定する（例: `evaluation.prediction=null`）。
 
 ### 評価タイプ
 
