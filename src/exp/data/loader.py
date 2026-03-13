@@ -84,7 +84,7 @@ class VideoFrameLoader:
 
     def __init__(
         self,
-        video_paths: list[Path] | list[str],
+        video_list_path: str | Path,
         target_fps: float = 10.0,
         target_size: tuple[int, int] = (224, 224),
         mean: tuple[float, ...] = (0.485, 0.456, 0.406),
@@ -94,7 +94,8 @@ class VideoFrameLoader:
         """Initialize the video frame loader.
 
         Args:
-            video_paths: List of paths to video files.
+            video_list_path: Path to a text file listing video paths, one per
+                line. Blank lines are ignored.
             target_fps: Target frames per second for subsampling.
             target_size: Target frame size as (H, W).
             mean: Normalization mean per channel.
@@ -102,11 +103,23 @@ class VideoFrameLoader:
             fade_duration: Duration of fade transitions in seconds.
 
         Raises:
-            ValueError: If video_paths is empty, target_fps <= 0,
-                fade_duration < 0, or target_size dimensions are not positive.
+            FileNotFoundError: If video_list_path does not exist.
+            ValueError: If the video list file contains no paths,
+                target_fps <= 0, fade_duration < 0, or target_size
+                dimensions are not positive.
         """
+        list_path = Path(video_list_path)
+        if not list_path.exists():
+            raise FileNotFoundError(f"Video list file not found: {list_path}")
+
+        video_paths = [
+            Path(line.strip())
+            for line in list_path.read_text().splitlines()
+            if line.strip()
+        ]
+
         if len(video_paths) == 0:
-            raise ValueError("video_paths must not be empty.")
+            raise ValueError("Video list file contains no video paths.")
         if target_fps <= 0:
             raise ValueError("target_fps must be positive.")
         if fade_duration < 0:
@@ -116,7 +129,7 @@ class VideoFrameLoader:
                 f"target_size dimensions must be positive, got {target_size}"
             )
 
-        self._video_paths = [Path(p) for p in video_paths]
+        self._video_paths = video_paths
         self._target_fps = target_fps
         self._target_size = target_size
         self._mean = mean

@@ -1,7 +1,7 @@
 # Data pipeline configuration
 frame_loader:
   _target_: exp.data.loader.VideoFrameLoader
-  video_paths: []  # Must be overridden
+  video_list_path: null  # Path to text file listing video paths, one per line
   target_fps: 10.0
   target_size: [224, 224]  # [H, W]
   mean: [0.485, 0.456, 0.406]

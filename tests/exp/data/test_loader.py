@@ -17,6 +17,13 @@ def _make_mock_video(
     return video, audio, info
 
 
+def _write_video_list(tmp_path: Path, paths: list[str | Path]) -> Path:
+    """Create a video list file and return its path."""
+    list_file = tmp_path / "videos.txt"
+    list_file.write_text("\n".join(str(p) for p in paths))
+    return list_file
+
+
 class TestCenterCrop:
     def test_wider_frame_crops_width(self):
         frame = torch.randn(3, 100, 200)
@@ -62,41 +69,54 @@ class TestPreprocessFrame:
 
 
 class TestVideoFrameLoaderValidation:
-    def test_empty_paths_raises(self):
-        with pytest.raises(ValueError, match="video_paths must not be empty"):
-            VideoFrameLoader(video_paths=[])
+    def test_empty_paths_raises(self, tmp_path):
+        list_file = tmp_path / "empty.txt"
+        list_file.write_text("")
+        with pytest.raises(ValueError, match="Video list file contains no video paths"):
+            VideoFrameLoader(video_list_path=list_file)
 
-    def test_negative_fps_raises(self):
+    def test_nonexistent_file_raises(self, tmp_path):
+        nonexistent = tmp_path / "nonexistent.txt"
+        with pytest.raises(FileNotFoundError, match="Video list file not found"):
+            VideoFrameLoader(video_list_path=nonexistent)
+
+    def test_negative_fps_raises(self, tmp_path):
+        list_file = _write_video_list(tmp_path, ["a.mp4"])
         with pytest.raises(ValueError, match="target_fps must be positive"):
-            VideoFrameLoader(video_paths=[Path("a.mp4")], target_fps=-1.0)
+            VideoFrameLoader(video_list_path=list_file, target_fps=-1.0)
 
-    def test_zero_fps_raises(self):
+    def test_zero_fps_raises(self, tmp_path):
+        list_file = _write_video_list(tmp_path, ["a.mp4"])
         with pytest.raises(ValueError, match="target_fps must be positive"):
-            VideoFrameLoader(video_paths=[Path("a.mp4")], target_fps=0.0)
+            VideoFrameLoader(video_list_path=list_file, target_fps=0.0)
 
-    def test_negative_fade_duration_raises(self):
+    def test_negative_fade_duration_raises(self, tmp_path):
+        list_file = _write_video_list(tmp_path, ["a.mp4"])
         with pytest.raises(ValueError, match="fade_duration must be non-negative"):
-            VideoFrameLoader(video_paths=[Path("a.mp4")], fade_duration=-1.0)
+            VideoFrameLoader(video_list_path=list_file, fade_duration=-1.0)
 
-    def test_non_positive_target_size_raises(self):
+    def test_non_positive_target_size_raises(self, tmp_path):
+        list_file = _write_video_list(tmp_path, ["a.mp4"])
         with pytest.raises(ValueError, match="target_size dimensions must be positive"):
-            VideoFrameLoader(video_paths=[Path("a.mp4")], target_size=(0, 224))
+            VideoFrameLoader(video_list_path=list_file, target_size=(0, 224))
 
-    def test_negative_target_size_raises(self):
+    def test_negative_target_size_raises(self, tmp_path):
+        list_file = _write_video_list(tmp_path, ["a.mp4"])
         with pytest.raises(ValueError, match="target_size dimensions must be positive"):
-            VideoFrameLoader(video_paths=[Path("a.mp4")], target_size=(224, -1))
+            VideoFrameLoader(video_list_path=list_file, target_size=(224, -1))
 
 
 class TestVideoFrameLoaderSubsampling:
-    def test_30fps_to_10fps_skips_frames(self, mocker):
+    def test_30fps_to_10fps_skips_frames(self, mocker, tmp_path):
         n_frames = 30
         mock_video = _make_mock_video(n_frames=n_frames, fps=30.0)
         mocker.patch(
             "exp.data.loader.torchvision.io.read_video", return_value=mock_video
         )
 
+        list_file = _write_video_list(tmp_path, ["video.mp4"])
         loader = VideoFrameLoader(
-            video_paths=[Path("video.mp4")],
+            video_list_path=list_file,
             target_fps=10.0,
             fade_duration=0.0,
         )
@@ -104,15 +124,16 @@ class TestVideoFrameLoaderSubsampling:
         # skip = round(30/10) = 3, so 30/3 = 10 frames
         assert len(frames) == 10
 
-    def test_same_fps_no_skipping(self, mocker):
+    def test_same_fps_no_skipping(self, mocker, tmp_path):
         n_frames = 15
         mock_video = _make_mock_video(n_frames=n_frames, fps=15.0)
         mocker.patch(
             "exp.data.loader.torchvision.io.read_video", return_value=mock_video
         )
 
+        list_file = _write_video_list(tmp_path, ["video.mp4"])
         loader = VideoFrameLoader(
-            video_paths=[Path("video.mp4")],
+            video_list_path=list_file,
             target_fps=15.0,
             fade_duration=0.0,
         )
@@ -121,7 +142,7 @@ class TestVideoFrameLoaderSubsampling:
 
 
 class TestVideoFrameLoaderFadeTransition:
-    def test_fade_frame_count(self, mocker):
+    def test_fade_frame_count(self, mocker, tmp_path):
         n_frames = 10
         mock_video = _make_mock_video(n_frames=n_frames, fps=10.0)
         mocker.patch(
@@ -132,8 +153,9 @@ class TestVideoFrameLoaderFadeTransition:
         target_fps = 10.0
         fade_frames = int(fade_duration * target_fps)
 
+        list_file = _write_video_list(tmp_path, ["a.mp4", "b.mp4"])
         loader = VideoFrameLoader(
-            video_paths=[Path("a.mp4"), Path("b.mp4")],
+            video_list_path=list_file,
             target_fps=target_fps,
             fade_duration=fade_duration,
         )
@@ -142,22 +164,23 @@ class TestVideoFrameLoaderFadeTransition:
         expected = n_frames * 2 + fade_frames * 2
         assert len(frames) == expected
 
-    def test_no_fade_with_zero_duration(self, mocker):
+    def test_no_fade_with_zero_duration(self, mocker, tmp_path):
         n_frames = 10
         mock_video = _make_mock_video(n_frames=n_frames, fps=10.0)
         mocker.patch(
             "exp.data.loader.torchvision.io.read_video", return_value=mock_video
         )
 
+        list_file = _write_video_list(tmp_path, ["a.mp4", "b.mp4"])
         loader = VideoFrameLoader(
-            video_paths=[Path("a.mp4"), Path("b.mp4")],
+            video_list_path=list_file,
             target_fps=10.0,
             fade_duration=0.0,
         )
         frames = list(loader)
         assert len(frames) == n_frames * 2
 
-    def test_fade_out_interpolation(self, mocker):
+    def test_fade_out_interpolation(self, mocker, tmp_path):
         # Use a uniform frame so we can verify interpolation values
         video = torch.full((5, 100, 100, 3), 255, dtype=torch.uint8)
         audio = torch.empty(0)
@@ -167,8 +190,9 @@ class TestVideoFrameLoaderFadeTransition:
             side_effect=[(video, audio, info), (video, audio, info)],
         )
 
+        list_file = _write_video_list(tmp_path, ["a.mp4", "b.mp4"])
         loader = VideoFrameLoader(
-            video_paths=[Path("a.mp4"), Path("b.mp4")],
+            video_list_path=list_file,
             target_fps=5.0,
             target_size=(100, 100),
             mean=(0.0, 0.0, 0.0),
@@ -194,14 +218,15 @@ class TestVideoFrameLoaderFadeTransition:
 
 
 class TestVideoFrameLoaderIterator:
-    def test_output_shape(self, mocker):
+    def test_output_shape(self, mocker, tmp_path):
         mock_video = _make_mock_video(n_frames=10, h=240, w=320, fps=10.0)
         mocker.patch(
             "exp.data.loader.torchvision.io.read_video", return_value=mock_video
         )
 
+        list_file = _write_video_list(tmp_path, ["v.mp4"])
         loader = VideoFrameLoader(
-            video_paths=[Path("v.mp4")],
+            video_list_path=list_file,
             target_fps=10.0,
             target_size=(112, 112),
             fade_duration=0.0,
@@ -209,14 +234,15 @@ class TestVideoFrameLoaderIterator:
         frames = list(loader)
         assert all(f.shape == (3, 112, 112) for f in frames)
 
-    def test_single_video_total_frames(self, mocker):
+    def test_single_video_total_frames(self, mocker, tmp_path):
         mock_video = _make_mock_video(n_frames=60, fps=30.0)
         mocker.patch(
             "exp.data.loader.torchvision.io.read_video", return_value=mock_video
         )
 
+        list_file = _write_video_list(tmp_path, ["v.mp4"])
         loader = VideoFrameLoader(
-            video_paths=[Path("v.mp4")],
+            video_list_path=list_file,
             target_fps=10.0,
             fade_duration=0.0,
         )
