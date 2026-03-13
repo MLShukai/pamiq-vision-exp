@@ -260,6 +260,7 @@ class LightWeightDecoder(nn.Module):
             raise ValueError("upsample must be >= 1 in all dimensions.")
 
         self._n_tubelets = n_tubelets
+        self._embed_dim = embed_dim
         self._upsample = upsample
 
         self._upsample_conv = nn.ConvTranspose3d(
@@ -290,16 +291,20 @@ class LightWeightDecoder(nn.Module):
         )
 
     @override
-    def forward(self, latents: Tensor) -> Tensor:
-        """Decode latents to video.
+    def forward(self, features: Tensor) -> Tensor:
+        """Decode features to video.
 
         Args:
-            latents: Input latents [batch, n_tubelets, embed_dim].
+            features: Encoded features [batch, feature_size].
 
         Returns:
             Reconstructed video [batch, channels, time, height, width].
         """
         n_t, n_h, n_w = self._n_tubelets
+        n_total = n_t * n_h * n_w
+
+        # Reshape flat features to tubelet structure
+        latents = features.reshape(-1, n_total, self._embed_dim)
 
         x = latents.transpose(-1, -2)
         x = x.reshape(*x.shape[:2], n_t, n_h, n_w)

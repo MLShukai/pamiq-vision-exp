@@ -159,9 +159,9 @@ class TestLightWeightDecoder:
 
         n_t, n_h, n_w = n_tubelets
         total_tubelets = n_t * n_h * n_w
-        latents = torch.randn(batch_size, total_tubelets, embed_dim)
+        features = torch.randn(batch_size, total_tubelets * embed_dim)
 
-        output = decoder(latents)
+        output = decoder(features)
 
         expected_time = n_t * tubelet_size[0]
         expected_height = n_h * tubelet_size[1]
