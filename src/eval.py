@@ -120,15 +120,15 @@ def main(cfg: DictConfig) -> None:
     # --- Downsampling Baseline ---
     if cfg.evaluation.get("baseline") is not None:
         logger.info("Running downsampling baseline...")
-        baseline = instantiate(cfg.evaluation.baseline)
+        baseline = instantiate(cfg.evaluation.baseline).to(device)
 
         # Encode with baseline (same loop as main encoder)
         baseline_features_list = []
         with torch.no_grad():
             for i in range(0, len(video_tensor), batch_size):
-                b = video_tensor[i : i + batch_size]
+                b = video_tensor[i : i + batch_size].to(device)
                 feat = baseline(b)
-                baseline_features_list.append(feat)
+                baseline_features_list.append(feat.cpu())
         baseline_features = torch.cat(baseline_features_list, dim=0)
         logger.info(f"Baseline features shape: {baseline_features.shape}")
 
@@ -137,7 +137,7 @@ def main(cfg: DictConfig) -> None:
             baseline_decoder = instantiate(
                 cfg.evaluation.reconstruction.decoder,
                 _convert_="partial",
-            )
+            ).to(device)
             baseline_recon_eval = ReconstructionEvaluator(
                 baseline, baseline_decoder, device
             )
@@ -165,7 +165,7 @@ def main(cfg: DictConfig) -> None:
                 input_dim=baseline_feat_dim,
                 hidden_dim=baseline_feat_dim,
                 output_dim=baseline_feat_dim,
-            )
+            ).to(device)
             baseline_pred_eval = PredictionEvaluator(
                 predictor=baseline_predictor,
                 horizons=list(cfg.evaluation.prediction.horizons),
