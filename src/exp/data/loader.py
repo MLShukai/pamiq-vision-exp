@@ -3,10 +3,44 @@
 from collections.abc import Iterator
 from pathlib import Path
 
+import av
 import torch
 import torch.nn.functional as F
-import torchvision.io
 from torch import Tensor
+
+
+def _get_video_fps(path: Path) -> float:
+    """Get the average frame rate of a video file.
+
+    Args:
+        path: Path to the video file.
+
+    Returns:
+        Average FPS as a float.
+    """
+    container = av.open(str(path))
+    rate = container.streams.video[0].average_rate
+    container.close()
+    if rate is None:
+        raise ValueError(f"Cannot determine FPS for video: {path}")
+    return float(rate)
+
+
+def _iter_video_frames(path: Path, skip: int) -> Iterator[Tensor]:
+    """Iterate over video frames, yielding every `skip`-th frame as a tensor.
+
+    Args:
+        path: Path to the video file.
+        skip: Yield one frame every `skip` frames.
+
+    Yields:
+        Frame tensor [H, W, C] uint8.
+    """
+    container = av.open(str(path))
+    for frame_idx, frame in enumerate(container.decode(video=0)):
+        if frame_idx % skip == 0:
+            yield torch.from_numpy(frame.to_ndarray(format="rgb24"))
+    container.close()
 
 
 def _center_crop(frame: Tensor, target_h: int, target_w: int) -> Tensor:
@@ -39,18 +73,16 @@ def _center_crop(frame: Tensor, target_h: int, target_w: int) -> Tensor:
 def _preprocess_frame(
     frame: Tensor,
     target_size: tuple[int, int],
-    mean: tuple[float, ...],
-    std: tuple[float, ...],
+    standardize: bool,
 ) -> Tensor:
     """Preprocess a single video frame.
 
-    Pipeline: convert to float [0,1] -> center crop -> resize -> normalize.
+    Pipeline: convert to float [0,1] -> center crop -> resize -> standardize.
 
     Args:
         frame: Input frame [H, W, C] uint8.
         target_size: Target (H, W).
-        mean: Normalization mean per channel.
-        std: Normalization std per channel.
+        standardize: If True, normalize to zero mean and unit variance.
 
     Returns:
         Preprocessed frame [C, H, W] float32.
@@ -70,10 +102,11 @@ def _preprocess_frame(
         align_corners=False,
     ).squeeze(0)
 
-    # Normalize
-    mean_t = torch.tensor(mean, dtype=out.dtype, device=out.device).view(-1, 1, 1)
-    std_t = torch.tensor(std, dtype=out.dtype, device=out.device).view(-1, 1, 1)
-    out = (out - mean_t) / std_t
+    # Standardize
+    if standardize:
+        mean = out.mean()
+        std = out.std()
+        out = (out - mean) / (std + 1e-6)
 
     return out
 
@@ -87,8 +120,7 @@ class VideoFrameLoader:
         video_list_path: str | Path,
         target_fps: float = 10.0,
         target_size: tuple[int, int] = (224, 224),
-        mean: tuple[float, ...] = (0.485, 0.456, 0.406),
-        std: tuple[float, ...] = (0.229, 0.224, 0.225),
+        standardize: bool = True,
         fade_duration: float = 1.0,
     ) -> None:
         """Initialize the video frame loader.
@@ -98,8 +130,8 @@ class VideoFrameLoader:
                 line. Blank lines are ignored.
             target_fps: Target frames per second for subsampling.
             target_size: Target frame size as (H, W).
-            mean: Normalization mean per channel.
-            std: Normalization std per channel.
+            standardize: If True, normalize frames to zero mean and unit
+                variance.
             fade_duration: Duration of fade transitions in seconds.
 
         Raises:
@@ -132,8 +164,7 @@ class VideoFrameLoader:
         self._video_paths = video_paths
         self._target_fps = target_fps
         self._target_size = target_size
-        self._mean = mean
-        self._std = std
+        self._standardize = standardize
         self._fade_duration = fade_duration
 
     def __iter__(self) -> Iterator[Tensor]:
@@ -146,19 +177,17 @@ class VideoFrameLoader:
         last_frame: Tensor | None = None
 
         for video_idx, path in enumerate(self._video_paths):
-            video, _audio, info = torchvision.io.read_video(str(path), pts_unit="sec")
-            source_fps: float = info["video_fps"]
-            skip = max(1, round(source_fps / self._target_fps))
+            fps = _get_video_fps(path)
+            skip = max(1, round(fps / self._target_fps))
 
-            # Subsample frames
-            subsampled = video[::skip]
-
-            if subsampled.shape[0] == 0:
+            frame_iter = _iter_video_frames(path, skip)
+            first_raw = next(frame_iter, None)
+            if first_raw is None:
                 continue
 
             # Preprocess first frame for potential fade-in
             first_frame = _preprocess_frame(
-                subsampled[0], self._target_size, self._mean, self._std
+                first_raw, self._target_size, self._standardize
             )
 
             # Fade transition between videos
@@ -173,13 +202,14 @@ class VideoFrameLoader:
                     alpha = (i + 1) / fade_frames
                     yield first_frame * alpha + black * (1.0 - alpha)
 
-            # Yield all subsampled frames
-            for frame_idx in range(subsampled.shape[0]):
+            # Yield first frame
+            last_frame = first_frame
+            yield first_frame
+
+            # Yield remaining subsampled frames
+            for raw_frame in frame_iter:
                 processed = _preprocess_frame(
-                    subsampled[frame_idx],
-                    self._target_size,
-                    self._mean,
-                    self._std,
+                    raw_frame, self._target_size, self._standardize
                 )
                 last_frame = processed
                 yield processed

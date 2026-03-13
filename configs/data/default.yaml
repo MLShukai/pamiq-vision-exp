@@ -4,8 +4,7 @@ frame_loader:
   video_list_path: null  # Path to text file listing video paths, one per line
   target_fps: 10.0
   target_size: [224, 224]  # [H, W]
-  mean: [0.485, 0.456, 0.406]
-  std: [0.229, 0.224, 0.225]
+  standardize: true
   fade_duration: 1.0  # seconds
 
 frame_stacker:

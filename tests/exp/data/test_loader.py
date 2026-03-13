@@ -1,5 +1,7 @@
 from pathlib import Path
+from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
 import torch
 from torch import Tensor
@@ -7,14 +9,50 @@ from torch import Tensor
 from exp.data.loader import VideoFrameLoader, _center_crop, _preprocess_frame
 
 
-def _make_mock_video(
+def _make_mock_container(
     n_frames: int = 30, h: int = 240, w: int = 320, fps: float = 30.0
-) -> tuple[Tensor, Tensor, dict[str, float]]:
-    """Create mock video data matching torchvision.io.read_video output."""
-    video = torch.randint(0, 256, (n_frames, h, w, 3), dtype=torch.uint8)
-    audio = torch.empty(0)
-    info = {"video_fps": fps}
-    return video, audio, info
+) -> MagicMock:
+    """Create a mock av container."""
+    mock_frames = []
+    for _ in range(n_frames):
+        frame = MagicMock()
+        frame.to_ndarray.return_value = np.random.randint(
+            0, 256, (h, w, 3), dtype=np.uint8
+        )
+        mock_frames.append(frame)
+
+    mock_stream = MagicMock()
+    mock_stream.average_rate = fps
+
+    container = MagicMock()
+    container.streams.video = [mock_stream]
+    container.decode.return_value = iter(mock_frames)
+    container.__enter__ = MagicMock(return_value=container)
+    container.__exit__ = MagicMock(return_value=False)
+
+    return container
+
+
+def _make_uniform_container(
+    n_frames: int, h: int, w: int, fps: float, value: int
+) -> MagicMock:
+    """Create a mock av container with uniform pixel values."""
+    mock_frames = []
+    for _ in range(n_frames):
+        frame = MagicMock()
+        frame.to_ndarray.return_value = np.full((h, w, 3), value, dtype=np.uint8)
+        mock_frames.append(frame)
+
+    mock_stream = MagicMock()
+    mock_stream.average_rate = fps
+
+    container = MagicMock()
+    container.streams.video = [mock_stream]
+    container.decode.return_value = iter(mock_frames)
+    container.__enter__ = MagicMock(return_value=container)
+    container.__exit__ = MagicMock(return_value=False)
+
+    return container
 
 
 def _write_video_list(tmp_path: Path, paths: list[str | Path]) -> Path:
@@ -51,19 +89,24 @@ class TestCenterCrop:
 class TestPreprocessFrame:
     def test_output_shape(self):
         frame = torch.randint(0, 256, (240, 320, 3), dtype=torch.uint8)
-        result = _preprocess_frame(frame, (224, 224), (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        result = _preprocess_frame(frame, (224, 224), True)
         assert result.shape == (3, 224, 224)
 
     def test_output_dtype(self):
         frame = torch.randint(0, 256, (240, 320, 3), dtype=torch.uint8)
-        result = _preprocess_frame(frame, (112, 112), (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        result = _preprocess_frame(frame, (112, 112), False)
         assert result.dtype == torch.float32
 
-    def test_normalization(self):
+    def test_standardize_uniform_frame(self):
         frame = torch.full((100, 100, 3), 128, dtype=torch.uint8)
-        mean = (0.0, 0.0, 0.0)
-        std = (1.0, 1.0, 1.0)
-        result = _preprocess_frame(frame, (100, 100), mean, std)
+        result = _preprocess_frame(frame, (100, 100), True)
+        # Uniform input: all values equal, so (val - mean) / (std + eps) ≈ 0
+        # Bilinear resize may introduce tiny edge artifacts, so use relaxed atol
+        assert torch.allclose(result, torch.zeros_like(result), atol=0.1)
+
+    def test_no_standardize(self):
+        frame = torch.full((100, 100, 3), 128, dtype=torch.uint8)
+        result = _preprocess_frame(frame, (100, 100), False)
         expected_val = 128.0 / 255.0
         assert torch.allclose(result, torch.full_like(result, expected_val), atol=1e-3)
 
@@ -109,10 +152,10 @@ class TestVideoFrameLoaderValidation:
 class TestVideoFrameLoaderSubsampling:
     def test_30fps_to_10fps_skips_frames(self, mocker, tmp_path):
         n_frames = 30
-        mock_video = _make_mock_video(n_frames=n_frames, fps=30.0)
-        mocker.patch(
-            "exp.data.loader.torchvision.io.read_video", return_value=mock_video
-        )
+        containers = [
+            _make_mock_container(n_frames=n_frames, fps=30.0) for _ in range(2)
+        ]
+        mocker.patch("exp.data.loader.av.open", side_effect=containers)
 
         list_file = _write_video_list(tmp_path, ["video.mp4"])
         loader = VideoFrameLoader(
@@ -126,10 +169,10 @@ class TestVideoFrameLoaderSubsampling:
 
     def test_same_fps_no_skipping(self, mocker, tmp_path):
         n_frames = 15
-        mock_video = _make_mock_video(n_frames=n_frames, fps=15.0)
-        mocker.patch(
-            "exp.data.loader.torchvision.io.read_video", return_value=mock_video
-        )
+        containers = [
+            _make_mock_container(n_frames=n_frames, fps=15.0) for _ in range(2)
+        ]
+        mocker.patch("exp.data.loader.av.open", side_effect=containers)
 
         list_file = _write_video_list(tmp_path, ["video.mp4"])
         loader = VideoFrameLoader(
@@ -144,10 +187,11 @@ class TestVideoFrameLoaderSubsampling:
 class TestVideoFrameLoaderFadeTransition:
     def test_fade_frame_count(self, mocker, tmp_path):
         n_frames = 10
-        mock_video = _make_mock_video(n_frames=n_frames, fps=10.0)
-        mocker.patch(
-            "exp.data.loader.torchvision.io.read_video", return_value=mock_video
-        )
+        # 2 videos * 2 calls each = 4 containers
+        containers = [
+            _make_mock_container(n_frames=n_frames, fps=10.0) for _ in range(4)
+        ]
+        mocker.patch("exp.data.loader.av.open", side_effect=containers)
 
         fade_duration = 1.0
         target_fps = 10.0
@@ -166,10 +210,10 @@ class TestVideoFrameLoaderFadeTransition:
 
     def test_no_fade_with_zero_duration(self, mocker, tmp_path):
         n_frames = 10
-        mock_video = _make_mock_video(n_frames=n_frames, fps=10.0)
-        mocker.patch(
-            "exp.data.loader.torchvision.io.read_video", return_value=mock_video
-        )
+        containers = [
+            _make_mock_container(n_frames=n_frames, fps=10.0) for _ in range(4)
+        ]
+        mocker.patch("exp.data.loader.av.open", side_effect=containers)
 
         list_file = _write_video_list(tmp_path, ["a.mp4", "b.mp4"])
         loader = VideoFrameLoader(
@@ -181,22 +225,17 @@ class TestVideoFrameLoaderFadeTransition:
         assert len(frames) == n_frames * 2
 
     def test_fade_out_interpolation(self, mocker, tmp_path):
-        # Use a uniform frame so we can verify interpolation values
-        video = torch.full((5, 100, 100, 3), 255, dtype=torch.uint8)
-        audio = torch.empty(0)
-        info = {"video_fps": 5.0}
-        mocker.patch(
-            "exp.data.loader.torchvision.io.read_video",
-            side_effect=[(video, audio, info), (video, audio, info)],
-        )
+        # Use uniform frames so we can verify interpolation values
+        # 2 videos * 2 calls each = 4 containers
+        containers = [_make_uniform_container(5, 100, 100, 5.0, 255) for _ in range(4)]
+        mocker.patch("exp.data.loader.av.open", side_effect=containers)
 
         list_file = _write_video_list(tmp_path, ["a.mp4", "b.mp4"])
         loader = VideoFrameLoader(
             video_list_path=list_file,
             target_fps=5.0,
             target_size=(100, 100),
-            mean=(0.0, 0.0, 0.0),
-            std=(1.0, 1.0, 1.0),
+            standardize=False,
             fade_duration=1.0,
         )
         frames = list(loader)
@@ -219,10 +258,10 @@ class TestVideoFrameLoaderFadeTransition:
 
 class TestVideoFrameLoaderIterator:
     def test_output_shape(self, mocker, tmp_path):
-        mock_video = _make_mock_video(n_frames=10, h=240, w=320, fps=10.0)
-        mocker.patch(
-            "exp.data.loader.torchvision.io.read_video", return_value=mock_video
-        )
+        containers = [
+            _make_mock_container(n_frames=10, h=240, w=320, fps=10.0) for _ in range(2)
+        ]
+        mocker.patch("exp.data.loader.av.open", side_effect=containers)
 
         list_file = _write_video_list(tmp_path, ["v.mp4"])
         loader = VideoFrameLoader(
@@ -235,10 +274,8 @@ class TestVideoFrameLoaderIterator:
         assert all(f.shape == (3, 112, 112) for f in frames)
 
     def test_single_video_total_frames(self, mocker, tmp_path):
-        mock_video = _make_mock_video(n_frames=60, fps=30.0)
-        mocker.patch(
-            "exp.data.loader.torchvision.io.read_video", return_value=mock_video
-        )
+        containers = [_make_mock_container(n_frames=60, fps=30.0) for _ in range(2)]
+        mocker.patch("exp.data.loader.av.open", side_effect=containers)
 
         list_file = _write_video_list(tmp_path, ["v.mp4"])
         loader = VideoFrameLoader(
