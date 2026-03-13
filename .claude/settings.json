@@ -37,6 +37,9 @@
       "Bash(tree:*)",
       "Bash(grep:*)",
       "WebSearch"
+    ],
+    "deny": [
+      "Bash(git push:*)"
     ]
   }
 }
