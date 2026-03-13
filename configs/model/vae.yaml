@@ -1,6 +1,5 @@
+# VAE model configuration
 _target_: exp.models.vae.create_vae
-video_shape: ${shared.video_shape}
-tubelet_size: ${shared.tubelet_size}
+latent_dim: ${feature_size:${shared.video_shape},${shared.tubelet_size},${shared.embed_dim}}
 in_channels: ${shared.in_channels}
-embed_dim: ${shared.embed_dim}
 base_channels: 32

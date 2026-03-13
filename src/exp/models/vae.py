@@ -4,15 +4,11 @@ Follows the common encoder interface: input [B, C, T, H, W] -> output [B, latent
 The VAE averages over time and encodes spatial frames into a flat latent vector.
 """
 
-import math
 from typing import override
 
 import torch
 import torch.nn as nn
 from torch import Tensor
-
-from exp.models.components.patchfier import VideoPatchifier
-from exp.utils import size_3d, size_3d_to_tuple
 
 # Spatial size of the feature map before flattening in the encoder
 # (and after reshaping in the decoder). Determined by AdaptiveAvgPool2d.
@@ -155,34 +151,20 @@ class VAEDecoder(nn.Module):
 
 
 def create_vae(
-    video_shape: tuple[int, int, int] = (16, 224, 224),
-    tubelet_size: size_3d = (2, 16, 16),
+    latent_dim: int,
     in_channels: int = 3,
-    embed_dim: int = 128,
     base_channels: int = 32,
-    **kwargs: object,
 ) -> dict[str, nn.Module]:
     """Create a VAE encoder-decoder pair.
 
-    Accepts video_shape/tubelet_size/embed_dim for Hydra config compatibility.
-    Computes ``latent_dim = n_tubelets_total * embed_dim`` internally.
-    The returned Encoder/Decoder themselves are tubelet-agnostic.
-
     Args:
-        video_shape: Input video dimensions as (T, H, W).
-        tubelet_size: Spatiotemporal patch size as (t, h, w) or scalar.
+        latent_dim: Dimensionality of the latent space.
         in_channels: Number of input channels (e.g. 3 for RGB).
-        embed_dim: Embedding dimension per tubelet.
         base_channels: Base channel count for conv layers.
-        **kwargs: Ignored (accepts extra config keys gracefully).
 
     Returns:
         Dictionary with ``'encoder'`` and ``'decoder'`` modules.
     """
-    tubelet_size = size_3d_to_tuple(tubelet_size)
-    n_tubelets = VideoPatchifier.compute_num_tubelets(video_shape, tubelet_size)
-    latent_dim = math.prod(n_tubelets) * embed_dim
-
     encoder = VAEEncoder(
         latent_dim=latent_dim,
         in_channels=in_channels,

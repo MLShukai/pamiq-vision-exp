@@ -39,22 +39,14 @@ class TestVAEDecoder:
 
 class TestCreateVAE:
     def test_returns_encoder_and_decoder(self):
-        models = create_vae(
-            video_shape=(4, 32, 32),
-            tubelet_size=(2, 8, 8),
-            embed_dim=16,
-        )
+        models = create_vae(latent_dim=512)
         assert "encoder" in models
         assert "decoder" in models
         assert isinstance(models["encoder"], VAEEncoder)
         assert isinstance(models["decoder"], VAEDecoder)
 
     def test_latent_dim_from_config(self):
-        models = create_vae(
-            video_shape=(4, 32, 32),
-            tubelet_size=(2, 8, 8),
-            embed_dim=16,
-        )
+        models = create_vae(latent_dim=512)
         encoder = models["encoder"]
         video = torch.randn(1, 3, 4, 32, 32)
         out = encoder(video)
@@ -62,11 +54,7 @@ class TestCreateVAE:
         assert out.shape == (1, 512)
 
     def test_gradient_flows(self):
-        models = create_vae(
-            video_shape=(4, 32, 32),
-            tubelet_size=(2, 8, 8),
-            embed_dim=16,
-        )
+        models = create_vae(latent_dim=512)
         encoder = models["encoder"]
         decoder = models["decoder"]
         video = torch.randn(2, 3, 4, 32, 32)
