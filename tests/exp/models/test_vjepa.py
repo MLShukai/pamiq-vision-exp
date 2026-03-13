@@ -4,14 +4,15 @@ import torch
 from exp.models.components.patchfier import VideoPatchifier
 from exp.models.vjepa import Encoder, LightWeightDecoder, Predictor, create_video_jepa
 
+_ENCODER_PARAMS = [
+    (2, (2, 2, 2), 64, 32),
+    (1, (2, 3, 2), 48, 24),
+]
+
 
 class TestEncoder:
     @pytest.mark.parametrize(
-        "batch_size, n_tubelets, hidden_dim, embed_dim",
-        [
-            (2, (2, 2, 2), 64, 32),
-            (1, (2, 3, 2), 48, 24),
-        ],
+        "batch_size, n_tubelets, hidden_dim, embed_dim", _ENCODER_PARAMS
     )
     def test_forward_without_mask(self, batch_size, n_tubelets, hidden_dim, embed_dim):
         encoder = Encoder(
@@ -28,9 +29,31 @@ class TestEncoder:
 
         output = encoder(video)
 
+        assert output.shape == (batch_size, total_tubelets * embed_dim)
+
+    @pytest.mark.parametrize(
+        "batch_size, n_tubelets, hidden_dim, embed_dim", _ENCODER_PARAMS
+    )
+    def test_encode_tubelets_without_mask(
+        self, batch_size, n_tubelets, hidden_dim, embed_dim
+    ):
+        encoder = Encoder(
+            n_tubelets=n_tubelets,
+            hidden_dim=hidden_dim,
+            embed_dim=embed_dim,
+            depth=2,
+            num_heads=4,
+        )
+
+        n_t, n_h, n_w = n_tubelets
+        total_tubelets = n_t * n_h * n_w
+        video = torch.randn(batch_size, total_tubelets, hidden_dim)
+
+        output = encoder.encode_tubelets(video)
+
         assert output.shape == (batch_size, total_tubelets, embed_dim)
 
-    def test_forward_with_mask(self):
+    def test_encode_tubelets_with_mask(self):
         n_tubelets = (2, 2, 2)
         encoder = Encoder(
             n_tubelets=n_tubelets, hidden_dim=64, embed_dim=32, depth=2, num_heads=4
@@ -44,11 +67,11 @@ class TestEncoder:
         masks = torch.zeros(batch_size, total_tubelets, dtype=torch.bool)
         masks[:, :2] = True
 
-        output = encoder(video, masks)
+        output = encoder.encode_tubelets(video, masks)
 
         assert output.shape == (batch_size, total_tubelets, 32)
 
-    def test_forward_raises_on_wrong_mask_shape(self):
+    def test_encode_tubelets_raises_on_wrong_mask_shape(self):
         encoder = Encoder(
             n_tubelets=(2, 2, 2), hidden_dim=64, embed_dim=32, depth=2, num_heads=4
         )
@@ -57,9 +80,9 @@ class TestEncoder:
         wrong_masks = torch.zeros(2, 4, dtype=torch.bool)
 
         with pytest.raises(ValueError, match="Shape mismatch"):
-            encoder(video, wrong_masks)
+            encoder.encode_tubelets(video, wrong_masks)
 
-    def test_forward_raises_on_wrong_mask_dtype(self):
+    def test_encode_tubelets_raises_on_wrong_mask_dtype(self):
         encoder = Encoder(
             n_tubelets=(2, 2, 2), hidden_dim=64, embed_dim=32, depth=2, num_heads=4
         )
@@ -68,7 +91,7 @@ class TestEncoder:
         wrong_masks = torch.zeros(2, 8, dtype=torch.float32)
 
         with pytest.raises(ValueError, match="dtype must be bool"):
-            encoder(video, wrong_masks)
+            encoder.encode_tubelets(video, wrong_masks)
 
 
 class TestPredictor:

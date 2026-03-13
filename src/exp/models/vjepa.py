@@ -90,9 +90,9 @@ class Encoder(nn.Module):
         nn.init.trunc_normal_(self._mask_token, std=init_std)
         init_weights(self._out_proj, init_std)
 
-    @override
-    def forward(self, video: Tensor, masks: Tensor | None = None) -> Tensor:
-        """Encode input videos into latents with optional masking.
+    def encode_tubelets(self, video: Tensor, masks: Tensor | None = None) -> Tensor:
+        """Encode input videos into tubelet-level latents with optional
+        masking.
 
         Args:
             video: Input video [batch, channels, time, height, width].
@@ -104,12 +104,7 @@ class Encoder(nn.Module):
         x: Tensor = self._patchifier(video)
 
         if masks is not None:
-            if x.shape[:-1] != masks.shape:
-                raise ValueError(
-                    f"Shape mismatch: x{x.shape[:-1]} vs masks{masks.shape}"
-                )
-            if masks.dtype != torch.bool:
-                raise ValueError(f"Mask dtype must be bool, got {masks.dtype}")
+            self._validate_masks(x, masks)
             x = x.clone()
             x[masks] = self._mask_token
 
@@ -117,6 +112,27 @@ class Encoder(nn.Module):
         x = self._out_proj(x)
 
         return x
+
+    @staticmethod
+    def _validate_masks(x: Tensor, masks: Tensor) -> None:
+        """Validate mask shape and dtype against input tensor."""
+        if x.shape[:-1] != masks.shape:
+            raise ValueError(f"Shape mismatch: x{x.shape[:-1]} vs masks{masks.shape}")
+        if masks.dtype != torch.bool:
+            raise ValueError(f"Mask dtype must be bool, got {masks.dtype}")
+
+    @override
+    def forward(self, video: Tensor) -> Tensor:
+        """Encode input video to flat feature vector.
+
+        Args:
+            video: Input video [batch, channels, time, height, width].
+
+        Returns:
+            Encoded features [batch, feature_size] where
+            feature_size = n_tubelets_total * embed_dim.
+        """
+        return self.encode_tubelets(video).flatten(1)
 
     def clone(self) -> Self:
         """Clone model for creating target encoder."""
@@ -196,13 +212,7 @@ class Predictor(nn.Module):
         """
         x: Tensor = self._input_proj(latents)
 
-        if x.shape[:-1] != targets.shape:
-            raise ValueError(
-                f"Shape mismatch: x{x.shape[:-1]} vs targets{targets.shape}"
-            )
-        if targets.dtype != torch.bool:
-            raise ValueError(f"Target dtype must be bool, got {targets.dtype}")
-
+        self._validate_targets(x, targets)
         x = x.clone()
         x[targets] += self._prediction_token
 
@@ -210,6 +220,16 @@ class Predictor(nn.Module):
         x = self._out_proj(x)
 
         return x
+
+    @staticmethod
+    def _validate_targets(x: Tensor, targets: Tensor) -> None:
+        """Validate target mask shape and dtype against input tensor."""
+        if x.shape[:-1] != targets.shape:
+            raise ValueError(
+                f"Shape mismatch: x{x.shape[:-1]} vs targets{targets.shape}"
+            )
+        if targets.dtype != torch.bool:
+            raise ValueError(f"Target dtype must be bool, got {targets.dtype}")
 
 
 class LightWeightDecoder(nn.Module):
