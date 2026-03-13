@@ -93,7 +93,7 @@ class VJEPATrainingLogic(TrainingLogic):
         """
         # Target encoder (no gradient)
         with torch.no_grad():
-            latent_target = self._target_encoder(videos)
+            latent_target = self._target_encoder.encode_tubelets(videos)
             # Normalize over feature dimension (V-JEPA uses LayerNorm)
             latent_target = F.layer_norm(
                 latent_target,
@@ -101,7 +101,9 @@ class VJEPATrainingLogic(TrainingLogic):
             )
 
         # Context encoder with masking
-        latent_context = self._context_encoder(videos, masks_for_context_encoder)
+        latent_context = self._context_encoder.encode_tubelets(
+            videos, masks_for_context_encoder
+        )
 
         # Predictor
         latent_predictor = self._predictor(latent_context, targets_for_predictor)
@@ -179,13 +181,14 @@ class VJEPATrainingLogic(TrainingLogic):
         Returns:
             TrainStepResult with loss and metrics.
         """
-        video_list = [batch[i] for i in range(batch.shape[0])]
-        videos, masks, targets = self._collator(video_list)
+        videos, masks, targets = self._collator(list(batch.unbind(0)))
 
         device = next(self._context_encoder.parameters()).device
-        videos = videos.to(device)
-        masks = masks.to(device)
-        targets = targets.to(device)
+        videos, masks, targets = (
+            videos.to(device),
+            masks.to(device),
+            targets.to(device),
+        )
 
         result = self.train_step(videos, masks, targets)
 
