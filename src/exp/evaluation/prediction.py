@@ -16,6 +16,11 @@ class PredictionResult:
 
     horizon_errors: dict[int, float]
     """MAE for each prediction horizon."""
+    pointwise_horizon_errors: dict[int, Tensor]
+    """Per-sequence MAE for each horizon.
+
+    Values have shape [num_seqs].
+    """
 
 
 class PredictionEvaluator:
@@ -150,13 +155,18 @@ class PredictionEvaluator:
         all_preds_tensor = torch.cat(all_preds, dim=0)
 
         horizon_errors: dict[int, float] = {}
+        pointwise_horizon_errors: dict[int, Tensor] = {}
         for h in self._horizons:
             if h > max_horizon:
                 continue
             # h-step ahead prediction is at index h-1
             pred_h = all_preds_tensor[:, h - 1]
             target_h = targets[:, h - 1]
-            mae = F.l1_loss(pred_h, target_h).item()
-            horizon_errors[h] = mae
+            mae_per_seq = (pred_h - target_h).abs().mean(dim=-1)
+            pointwise_horizon_errors[h] = mae_per_seq
+            horizon_errors[h] = mae_per_seq.mean().item()
 
-        return PredictionResult(horizon_errors=horizon_errors)
+        return PredictionResult(
+            horizon_errors=horizon_errors,
+            pointwise_horizon_errors=pointwise_horizon_errors,
+        )

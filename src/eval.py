@@ -65,6 +65,9 @@ def main(cfg: DictConfig) -> None:
     features = torch.cat(features_list, dim=0)  # [N, *]
     logger.info(f"Encoded features shape: {features.shape}")
 
+    eval_dir = checkpoint_path / "eval"
+    eval_dir.mkdir(parents=True, exist_ok=True)
+
     # --- Reconstruction Evaluation ---
     if cfg.evaluation.get("reconstruction") is not None:
         logger.info("Running reconstruction evaluation...")
@@ -84,6 +87,16 @@ def main(cfg: DictConfig) -> None:
         recon_result = recon_evaluator.evaluate(features, video_tensor)
         logger.info(
             f"Reconstruction - MAE: {recon_result.mae:.6f}, MSE: {recon_result.mse:.6f}"
+        )
+
+        torch.save(
+            {
+                "mae": recon_result.mae,
+                "mse": recon_result.mse,
+                "pointwise_mae": recon_result.pointwise_mae,
+                "pointwise_mse": recon_result.pointwise_mse,
+            },
+            eval_dir / "reconstruction.pt",
         )
 
     # --- Future Prediction Evaluation ---
@@ -115,6 +128,14 @@ def main(cfg: DictConfig) -> None:
         )
         for horizon, error in pred_result.horizon_errors.items():
             logger.info(f"Prediction horizon {horizon} - MAE: {error:.6f}")
+
+        torch.save(
+            {
+                "horizon_errors": pred_result.horizon_errors,
+                "pointwise_horizon_errors": pred_result.pointwise_horizon_errors,
+            },
+            eval_dir / "prediction.pt",
+        )
 
     # --- Downsampling Baseline ---
     if cfg.evaluation.get("baseline") is not None:
@@ -155,6 +176,16 @@ def main(cfg: DictConfig) -> None:
                 f"MSE: {baseline_recon_result.mse:.6f}"
             )
 
+            torch.save(
+                {
+                    "mae": baseline_recon_result.mae,
+                    "mse": baseline_recon_result.mse,
+                    "pointwise_mae": baseline_recon_result.pointwise_mae,
+                    "pointwise_mse": baseline_recon_result.pointwise_mse,
+                },
+                eval_dir / "baseline_reconstruction.pt",
+            )
+
         # Run prediction evaluation on baseline features
         if cfg.evaluation.get("prediction") is not None:
             baseline_feat_dim = baseline_features.shape[1]
@@ -181,6 +212,14 @@ def main(cfg: DictConfig) -> None:
             )
             for horizon, error in baseline_pred_result.horizon_errors.items():
                 logger.info(f"Baseline Prediction horizon {horizon} - MAE: {error:.6f}")
+
+            torch.save(
+                {
+                    "horizon_errors": baseline_pred_result.horizon_errors,
+                    "pointwise_horizon_errors": baseline_pred_result.pointwise_horizon_errors,
+                },
+                eval_dir / "baseline_prediction.pt",
+            )
 
     logger.info("Evaluation complete.")
 

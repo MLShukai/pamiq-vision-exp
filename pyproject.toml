@@ -12,6 +12,7 @@ dependencies = [
     "omegaconf>=2.3",
     "torch>=2.9.1",
     "torchvision>=0.22",
+    "matplotlib>=3.9",
     "tqdm>=4.67.1",
 ]
 

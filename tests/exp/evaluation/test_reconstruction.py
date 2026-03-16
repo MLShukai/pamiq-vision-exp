@@ -53,6 +53,11 @@ class TestReconstructionEvaluator:
         assert isinstance(result, ReconstructionResult)
         assert result.mae >= 0
         assert result.mse >= 0
+        assert result.pointwise_mae.shape == (10,)
+        assert result.pointwise_mse.shape == (10,)
+        assert (result.pointwise_mae >= 0).all()
+        assert (result.pointwise_mse >= 0).all()
+        assert abs(result.mae - result.pointwise_mae.mean().item()) < 1e-5
 
     def test_evaluate_identical_reconstruction(self):
         # If decoder outputs exactly the target, errors should be ~0
@@ -64,3 +69,5 @@ class TestReconstructionEvaluator:
         result = evaluator.evaluate(videos, videos)
         assert result.mae < 1e-5
         assert result.mse < 1e-5
+        assert (result.pointwise_mae < 1e-5).all()
+        assert (result.pointwise_mse < 1e-5).all()

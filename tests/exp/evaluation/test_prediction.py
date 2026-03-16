@@ -40,3 +40,15 @@ class TestPredictionEvaluator:
         assert isinstance(result, PredictionResult)
         assert set(result.horizon_errors.keys()) == {1, 2, 4}
         assert all(v >= 0 for v in result.horizon_errors.values())
+        assert set(result.pointwise_horizon_errors.keys()) == {1, 2, 4}
+        num_seqs = 50 - 10 - 4 + 1  # 37
+        for h in [1, 2, 4]:
+            assert result.pointwise_horizon_errors[h].shape == (num_seqs,)
+            assert (result.pointwise_horizon_errors[h] >= 0).all()
+            assert (
+                abs(
+                    result.horizon_errors[h]
+                    - result.pointwise_horizon_errors[h].mean().item()
+                )
+                < 1e-5
+            )
