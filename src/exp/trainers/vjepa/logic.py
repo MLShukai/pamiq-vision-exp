@@ -1,7 +1,7 @@
 """V-JEPA Training Logic."""
 
 from dataclasses import dataclass
-from typing import override
+from typing import cast, override
 
 import torch
 import torch.nn as nn
@@ -227,10 +227,6 @@ def create_vjepa_training_logic(
     Returns:
         Configured VJEPATrainingLogic.
     """
-    assert isinstance(context_encoder, Encoder)
-    assert isinstance(target_encoder, Encoder)
-    assert isinstance(predictor, Predictor)
-
     n_tubelets = VideoPatchifier.compute_num_tubelets(video_shape, tubelet_size)
     collator = VideoMultiBlockMaskCollator(num_tubelets=n_tubelets)
 
@@ -241,9 +237,9 @@ def create_vjepa_training_logic(
     )
 
     return VJEPATrainingLogic(
-        context_encoder=context_encoder,
-        target_encoder=target_encoder,
-        predictor=predictor,
+        context_encoder=cast(Encoder, context_encoder),
+        target_encoder=cast(Encoder, target_encoder),
+        predictor=cast(Predictor, predictor),
         optimizer=optimizer,
         collator=collator,
         ema_momentum=ema_momentum,
