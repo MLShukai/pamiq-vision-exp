@@ -1,4 +1,4 @@
-from typing import override
+from typing import cast, override
 
 import torch
 import torch.nn as nn
@@ -154,9 +154,9 @@ class MinGRU(nn.Module):
         final_hidden: list[Tensor] = []
         layer_input = x
         for i, cell in enumerate(self._cells):
-            # nn.ModuleList is typed as Iterable[nn.Module]; narrow to MinGRUCell
-            assert isinstance(cell, MinGRUCell)
-            layer_output, h_final = cell.parallel(layer_input, hidden_inputs[i])
+            layer_output, h_final = cast(MinGRUCell, cell).parallel(
+                layer_input, hidden_inputs[i]
+            )
             final_hidden.append(h_final)
             layer_input = layer_output
 

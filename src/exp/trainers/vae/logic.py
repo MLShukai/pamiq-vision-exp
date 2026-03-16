@@ -1,6 +1,6 @@
 """VAE Training Logic."""
 
-from typing import override
+from typing import cast, override
 
 import torch
 import torch.nn as nn
@@ -103,17 +103,14 @@ def create_vae_training_logic(
     Returns:
         Configured VAETrainingLogic.
     """
-    assert isinstance(encoder, VAEEncoder)
-    assert isinstance(decoder, VAEDecoder)
-
     optimizer = Adam(
         list(encoder.parameters()) + list(decoder.parameters()),
         lr=lr,
     )
 
     return VAETrainingLogic(
-        encoder=encoder,
-        decoder=decoder,
+        encoder=cast(VAEEncoder, encoder),
+        decoder=cast(VAEDecoder, decoder),
         optimizer=optimizer,
         kl_weight=kl_weight,
     )
