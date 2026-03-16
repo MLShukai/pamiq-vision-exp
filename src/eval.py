@@ -65,6 +65,9 @@ def main(cfg: DictConfig) -> None:
     features = torch.cat(features_list, dim=0)  # [N, *]
     logger.info(f"Encoded features shape: {features.shape}")
 
+    eval_dir = checkpoint_path / "eval"
+    eval_dir.mkdir(parents=True, exist_ok=True)
+
     # --- Reconstruction Evaluation ---
     if cfg.evaluation.get("reconstruction") is not None:
         logger.info("Running reconstruction evaluation...")
@@ -86,8 +89,6 @@ def main(cfg: DictConfig) -> None:
             f"Reconstruction - MAE: {recon_result.mae:.6f}, MSE: {recon_result.mse:.6f}"
         )
 
-        eval_dir = checkpoint_path / "eval"
-        eval_dir.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
                 "mae": recon_result.mae,
@@ -128,8 +129,6 @@ def main(cfg: DictConfig) -> None:
         for horizon, error in pred_result.horizon_errors.items():
             logger.info(f"Prediction horizon {horizon} - MAE: {error:.6f}")
 
-        eval_dir = checkpoint_path / "eval"
-        eval_dir.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
                 "horizon_errors": pred_result.horizon_errors,
@@ -177,8 +176,6 @@ def main(cfg: DictConfig) -> None:
                 f"MSE: {baseline_recon_result.mse:.6f}"
             )
 
-            eval_dir = checkpoint_path / "eval"
-            eval_dir.mkdir(parents=True, exist_ok=True)
             torch.save(
                 {
                     "mae": baseline_recon_result.mae,
@@ -216,8 +213,6 @@ def main(cfg: DictConfig) -> None:
             for horizon, error in baseline_pred_result.horizon_errors.items():
                 logger.info(f"Baseline Prediction horizon {horizon} - MAE: {error:.6f}")
 
-            eval_dir = checkpoint_path / "eval"
-            eval_dir.mkdir(parents=True, exist_ok=True)
             torch.save(
                 {
                     "horizon_errors": baseline_pred_result.horizon_errors,

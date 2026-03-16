@@ -31,12 +31,18 @@ def main(cfg: DictConfig) -> None:
     output_dir = Path(cfg.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load reconstruction results
+    # Load reconstruction results (including baseline)
     recon_results: dict[str, dict[str, Any]] = {}
-    for label, eval_dir in zip(labels, eval_dirs):
-        recon_path = Path(eval_dir) / "reconstruction.pt"
+    for label, eval_dir in zip(labels, eval_dirs, strict=True):
+        eval_path = Path(eval_dir)
+        recon_path = eval_path / "reconstruction.pt"
         if recon_path.exists():
             recon_results[label] = torch.load(recon_path, weights_only=False)
+        baseline_recon_path = eval_path / "baseline_reconstruction.pt"
+        if baseline_recon_path.exists():
+            recon_results[f"{label} (baseline)"] = torch.load(
+                baseline_recon_path, weights_only=False
+            )
 
     if recon_results:
         plot_reconstruction_errors(
@@ -46,19 +52,33 @@ def main(cfg: DictConfig) -> None:
             f"Saved reconstruction error plot to {output_dir / 'reconstruction_errors.png'}"
         )
 
-    # Load prediction results
+    # Load prediction results (including baseline)
     pred_results: dict[str, dict[str, Any]] = {}
-    for label, eval_dir in zip(labels, eval_dirs):
-        pred_path = Path(eval_dir) / "prediction.pt"
+    for label, eval_dir in zip(labels, eval_dirs, strict=True):
+        eval_path = Path(eval_dir)
+        pred_path = eval_path / "prediction.pt"
         if pred_path.exists():
             pred_results[label] = torch.load(pred_path, weights_only=False)
+        baseline_pred_path = eval_path / "baseline_prediction.pt"
+        if baseline_pred_path.exists():
+            pred_results[f"{label} (baseline)"] = torch.load(
+                baseline_pred_path, weights_only=False
+            )
 
     if pred_results:
-        # Plot for each horizon found in first result
-        first_result = next(iter(pred_results.values()))
-        for horizon in first_result["pointwise_horizon_errors"]:
+        # Collect all horizons across all results
+        all_horizons: set[int] = set()
+        for data in pred_results.values():
+            all_horizons.update(data["pointwise_horizon_errors"].keys())
+        for horizon in sorted(all_horizons):
+            # Filter results that have this horizon
+            horizon_results = {
+                label: data
+                for label, data in pred_results.items()
+                if horizon in data["pointwise_horizon_errors"]
+            }
             plot_prediction_errors(
-                pred_results,
+                horizon_results,
                 horizon,
                 ema_span,
                 output_dir / f"prediction_errors_h{horizon}.png",
