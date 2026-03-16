@@ -1,10 +1,25 @@
+from unittest.mock import MagicMock
+
 from exp.tracking import ExperimentTracker
 
 
 class TestExperimentTracker:
-    def test_tracker_falls_back_when_clearml_unavailable(self):
-        """When ClearML is not available, tracker falls back gracefully."""
+    def test_log_scalar(self, mocker):
+        mock_task = MagicMock()
+        mocker.patch("exp.tracking.Task.init", return_value=mock_task)
+
         tracker = ExperimentTracker(project_name="test", task_name="test")
-        # Should not raise
         tracker.log_scalar("title", "series", 1.0, 1)
+
+        mock_task.get_logger().report_scalar.assert_called_once_with(
+            "title", "series", 1.0, 1
+        )
+
+    def test_log_text(self, mocker):
+        mock_task = MagicMock()
+        mocker.patch("exp.tracking.Task.init", return_value=mock_task)
+
+        tracker = ExperimentTracker(project_name="test", task_name="test")
         tracker.log_text("hello")
+
+        mock_task.get_logger().report_text.assert_called_once_with("hello")
