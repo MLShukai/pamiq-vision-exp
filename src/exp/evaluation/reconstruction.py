@@ -16,6 +16,10 @@ class ReconstructionResult:
 
     mae: float
     mse: float
+    pointwise_mae: Tensor
+    """Per-sample MAE, shape [N]."""
+    pointwise_mse: Tensor
+    """Per-sample MSE, shape [N]."""
 
 
 class ReconstructionEvaluator:
@@ -126,20 +130,27 @@ class ReconstructionEvaluator:
         self._decoder.eval()
         self._decoder.to(self._device)
 
-        total_mae = 0.0
-        total_mse = 0.0
-        count = 0
+        all_mae: list[Tensor] = []
+        all_mse: list[Tensor] = []
 
         for i in range(0, len(features), batch_size):
             feat_batch = features[i : i + batch_size].to(self._device)
             target_batch = targets[i : i + batch_size].to(self._device)
 
             reconstructed = self._decoder(feat_batch)
-            total_mae += F.l1_loss(reconstructed, target_batch, reduction="sum").item()
-            total_mse += F.mse_loss(reconstructed, target_batch, reduction="sum").item()
-            count += target_batch.numel()
+            diff = reconstructed - target_batch
+            # Per-sample: reduce over (C, T, H, W) dims
+            mae_per_sample = diff.abs().mean(dim=(1, 2, 3, 4))
+            mse_per_sample = diff.pow(2).mean(dim=(1, 2, 3, 4))
+            all_mae.append(mae_per_sample.cpu())
+            all_mse.append(mse_per_sample.cpu())
+
+        pointwise_mae = torch.cat(all_mae, dim=0)
+        pointwise_mse = torch.cat(all_mse, dim=0)
 
         return ReconstructionResult(
-            mae=total_mae / count,
-            mse=total_mse / count,
+            mae=pointwise_mae.mean().item(),
+            mse=pointwise_mse.mean().item(),
+            pointwise_mae=pointwise_mae,
+            pointwise_mse=pointwise_mse,
         )
