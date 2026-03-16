@@ -90,7 +90,7 @@ class TestTrainingLoop:
 
         buffer = MagicMock()
         buffer.__len__ = MagicMock(return_value=10)
-        buffer.sample = MagicMock(return_value=torch.randn(4, 3, 2, 8, 8))
+        buffer.get_data = MagicMock(return_value=torch.randn(10, 3, 2, 8, 8))
 
         training_logic = MagicMock()
         result_mock = MagicMock()
@@ -112,8 +112,7 @@ class TestTrainingLoop:
         loop.run({})
 
         # 6 frames, trigger every 3 => 2 triggers
-        # Each trigger: num_steps = max(10 // 4, 1) = 2, 1 epoch => 2 calls
-        assert training_logic.train_step_from_batch.call_count == 4
+        assert buffer.get_data.call_count == 2
 
     def test_checkpoint_saved_at_time_interval(self, mocker):
         frame_loader = MagicMock()
@@ -184,7 +183,7 @@ class TestTrainingLoop:
         # Only the final checkpoint
         assert checkpoint_manager.save.call_count == 1
 
-    def test_learn_samples_from_buffer(self, mocker):
+    def test_learn_uses_dataloader_from_buffer(self, mocker):
         frame_loader = MagicMock()
         frames = [torch.randn(3, 8, 8) for _ in range(3)]
         frame_loader.__iter__ = MagicMock(return_value=iter(frames))
@@ -194,8 +193,7 @@ class TestTrainingLoop:
 
         buffer = MagicMock()
         buffer.__len__ = MagicMock(return_value=8)
-        batch_tensor = torch.randn(4, 3, 2, 8, 8)
-        buffer.sample = MagicMock(return_value=batch_tensor)
+        buffer.get_data = MagicMock(return_value=torch.randn(8, 3, 2, 8, 8))
 
         training_logic = MagicMock()
         result_mock = MagicMock()
@@ -216,6 +214,7 @@ class TestTrainingLoop:
         )
         loop.run({})
 
-        # Verify sample called with correct batch_size
-        for call in buffer.sample.call_args_list:
-            assert call[0][0] == 4
+        # get_data is called to create DataLoader
+        buffer.get_data.assert_called()
+        # DataLoader(8 items, batch_size=4) => 2 batches, 1 epoch => 2 calls
+        assert training_logic.train_step_from_batch.call_count == 2

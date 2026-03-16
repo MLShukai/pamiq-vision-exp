@@ -3,6 +3,7 @@ import time
 
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
 
 from exp.data.buffer import FIFOReplayBuffer
 from exp.data.loader import VideoFrameLoader
@@ -100,17 +101,17 @@ class TrainingLoop:
         logger.info(f"Training complete. {total_frames} frames, {elapsed:.1f}s elapsed")
 
     def _learn(self) -> None:
-        """Execute learning: sample batches and train for num_epochs."""
-        num_steps = max(len(self._buffer) // self._batch_size, 1)
+        """Execute learning: iterate over buffer with DataLoader for num_epochs."""
+        dataset = TensorDataset(self._buffer.get_data())
+        dataloader = DataLoader(dataset, batch_size=self._batch_size, shuffle=True)
 
         for epoch in range(self._num_epochs):
-            for step in range(num_steps):
-                batch = self._buffer.sample(self._batch_size)
+            for (batch,) in dataloader:
                 result = self._training_logic.train_step_from_batch(batch)
                 self._train_step_count += 1
 
                 loss_val = result.loss.item()
-                logger.debug(f"Epoch {epoch}, Step {step}, Loss: {loss_val:.4f}")
+                logger.debug(f"Epoch {epoch}, Loss: {loss_val:.4f}")
 
                 if self._tracker is not None:
                     self._tracker.log_scalar(

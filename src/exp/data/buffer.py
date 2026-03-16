@@ -39,36 +39,21 @@ class FIFOReplayBuffer:
         self._write_index += 1
         self._current_size = min(self._current_size + 1, self._max_size)
 
-    def sample(self, batch_size: int) -> Tensor:
-        """Sample a random batch from the buffer.
-
-        Args:
-            batch_size: Number of items to sample.
+    def get_data(self) -> Tensor:
+        """Return the valid data currently stored in the buffer.
 
         Returns:
-            Batch tensor of sampled items.
+            Tensor containing all valid items in the buffer.
 
         Raises:
             RuntimeError: If the buffer is empty.
-            ValueError: If batch_size exceeds current buffer size.
         """
         if self._current_size == 0 or self._storage is None:
-            raise RuntimeError("Cannot sample from empty buffer")
-        if batch_size > self._current_size:
-            raise ValueError(
-                f"batch_size ({batch_size}) exceeds buffer size ({self._current_size})"
-            )
-
-        indices = torch.randint(0, self._current_size, (batch_size,))
-        return self._storage[indices]
+            raise RuntimeError("Cannot get data from empty buffer")
+        return self._storage[: self._current_size]
 
     def __len__(self) -> int:
         return self._current_size
-
-    @property
-    def is_full(self) -> bool:
-        """Whether the buffer has reached max capacity."""
-        return self._current_size >= self._max_size
 
     def save(self, path: Path) -> None:
         """Save buffer state to disk.
