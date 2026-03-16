@@ -16,6 +16,12 @@
 | [V-JEPA: Revisiting Feature Prediction for Learning Visual Representations from Video](https://arxiv.org/abs/2404.08471) (Bardes et al.)                   | 2024 | 動画版 JEPA。本プロジェクトの主要手法                       |
 | [V-JEPA 2: Self-Supervised Video Models Enable Understanding, Prediction and Planning](https://arxiv.org/abs/2506.09985) (Bardes et al.)                   | 2025 | V-JEPA のスケールアップ版。3D RoPE を採用。本実装の設計基盤 |
 
+## RNN / 系列モデル
+
+| 論文                                                                             | 年   | 備考                                                    |
+| -------------------------------------------------------------------------------- | ---- | ------------------------------------------------------- |
+| [Were RNNs All We Needed?](https://arxiv.org/abs/2410.01201) (Feng et al., 2024) | 2024 | minGRU / minLSTM の提案。本プロジェクトの minGRU 実装元 |
+
 ## 表現学習手法（候補・ベースライン）
 
 | 論文                                                                                                        | 年   | 備考                                               |
