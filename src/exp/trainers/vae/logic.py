@@ -1,9 +1,8 @@
 """VAE Training Logic."""
 
-from typing import cast, override
+from typing import override
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from torch.optim import Adam, Optimizer
@@ -85,8 +84,8 @@ class VAETrainingLogic(TrainingLogic):
 
 
 def create_vae_training_logic(
-    encoder: nn.Module,
-    decoder: nn.Module,
+    encoder: VAEEncoder,
+    decoder: VAEDecoder,
     lr: float = 1e-3,
     kl_weight: float = 1e-3,
     **kwargs: object,
@@ -109,8 +108,8 @@ def create_vae_training_logic(
     )
 
     return VAETrainingLogic(
-        encoder=cast(VAEEncoder, encoder),
-        decoder=cast(VAEDecoder, decoder),
+        encoder=encoder,
+        decoder=decoder,
         optimizer=optimizer,
         kl_weight=kl_weight,
     )

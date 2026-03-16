@@ -1,10 +1,9 @@
 """V-JEPA Training Logic."""
 
 from dataclasses import dataclass
-from typing import cast, override
+from typing import override
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from torch.optim import AdamW, Optimizer
@@ -202,9 +201,9 @@ class VJEPATrainingLogic(TrainingLogic):
 
 
 def create_vjepa_training_logic(
-    context_encoder: nn.Module,
-    target_encoder: nn.Module,
-    predictor: nn.Module,
+    context_encoder: Encoder,
+    target_encoder: Encoder,
+    predictor: Predictor,
     video_shape: tuple[int, int, int] = (16, 224, 224),
     tubelet_size: tuple[int, int, int] = (2, 16, 16),
     lr: float = 1e-4,
@@ -237,9 +236,9 @@ def create_vjepa_training_logic(
     )
 
     return VJEPATrainingLogic(
-        context_encoder=cast(Encoder, context_encoder),
-        target_encoder=cast(Encoder, target_encoder),
-        predictor=cast(Predictor, predictor),
+        context_encoder=context_encoder,
+        target_encoder=target_encoder,
+        predictor=predictor,
         optimizer=optimizer,
         collator=collator,
         ema_momentum=ema_momentum,
