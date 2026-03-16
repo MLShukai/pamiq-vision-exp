@@ -24,9 +24,6 @@ def main(cfg: DictConfig) -> None:
     torch.manual_seed(cfg.seed)
     device = torch.device(cfg.device)
 
-    if cfg.checkpoint_path is None:
-        raise ValueError("checkpoint_path must be specified")
-
     checkpoint_path = Path(cfg.checkpoint_path)
     logger.info(f"Evaluating checkpoint: {checkpoint_path}")
 

@@ -6,7 +6,7 @@ defaults:
   - _self_
 
 experiment_name: "vjepa_eval"
-checkpoint_path: null  # Must be specified
+checkpoint_path: ???
 encoder_key: "context_encoder"  # Key in model dict for the encoder to evaluate
 device: "cuda"
 seed: 42

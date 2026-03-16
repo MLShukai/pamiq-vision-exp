@@ -3,7 +3,7 @@ encoding_batch_size: 32
 reconstruction:
   decoder:
     _target_: exp.models.vjepa.LightWeightDecoder
-    n_tubelets: null
+    n_tubelets: ???
     tubelet_size: ${shared.tubelet_size}
     embed_dim: ${shared.embed_dim}
   num_epochs: 50
