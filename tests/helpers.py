@@ -61,9 +61,10 @@ def create_test_video(
     stream = container.add_stream(
         "rawvideo", rate=Fraction(fps).limit_denominator(1000)
     )
-    stream.width = width
-    stream.height = height
-    stream.pix_fmt = "rgb24"
+    video_stream: av.VideoStream = stream  # type: ignore[assignment]
+    video_stream.width = width
+    video_stream.height = height
+    video_stream.pix_fmt = "rgb24"
 
     for _ in range(n_frames):
         if pixel_value is not None:
@@ -71,8 +72,8 @@ def create_test_video(
         else:
             data = np.random.randint(0, 256, (height, width, 3), dtype=np.uint8)
         frame = av.VideoFrame.from_ndarray(data, format="rgb24")
-        container.mux(stream.encode(frame))
+        container.mux(video_stream.encode(frame))
 
-    for packet in stream.encode():
+    for packet in video_stream.encode():
         container.mux(packet)
     container.close()
