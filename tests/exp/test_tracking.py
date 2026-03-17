@@ -1,11 +1,9 @@
-from unittest.mock import MagicMock
-
 from exp.tracking import ExperimentTracker
 
 
 class TestExperimentTracker:
     def test_log_scalar(self, mocker):
-        mock_task = MagicMock()
+        mock_task = mocker.Mock()
         mocker.patch("exp.tracking.Task.init", return_value=mock_task)
 
         tracker = ExperimentTracker(project_name="test", task_name="test")
@@ -16,7 +14,7 @@ class TestExperimentTracker:
         )
 
     def test_log_text(self, mocker):
-        mock_task = MagicMock()
+        mock_task = mocker.Mock()
         mocker.patch("exp.tracking.Task.init", return_value=mock_task)
 
         tracker = ExperimentTracker(project_name="test", task_name="test")
