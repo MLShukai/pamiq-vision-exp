@@ -1,19 +1,26 @@
-from unittest.mock import MagicMock
+from pathlib import Path
 
 import pytest
 import torch
+from torch import nn
 
+from exp.data.buffer import FIFOReplayBuffer
+from exp.data.stacking import FrameStacker
+from exp.training.checkpoint import CheckpointManager
 from exp.training.loop import TrainingLoop
+from tests.helpers import TrainingLogicImpl
 
 
-def _make_loop(**overrides: object) -> TrainingLoop:
-    """Create a TrainingLoop with mock dependencies."""
+def _make_loop(tmp_path: Path, **overrides: object) -> TrainingLoop:
+    """Create a TrainingLoop with real dependencies."""
     defaults: dict[str, object] = {
-        "frame_loader": MagicMock(),
-        "frame_stacker": MagicMock(),
-        "buffer": MagicMock(),
-        "training_logic": MagicMock(),
-        "checkpoint_manager": MagicMock(),
+        "frame_loader": [],
+        "frame_stacker": FrameStacker(num_frames=2, stride=1),
+        "buffer": FIFOReplayBuffer(max_size=100),
+        "training_logic": TrainingLogicImpl(),
+        "checkpoint_manager": CheckpointManager(
+            log_dir=tmp_path, experiment_name="test"
+        ),
         "trigger_every_n_frames": 5,
         "batch_size": 4,
         "num_epochs": 1,
@@ -24,197 +31,145 @@ def _make_loop(**overrides: object) -> TrainingLoop:
     return TrainingLoop(**defaults)  # type: ignore[arg-type]
 
 
-def _patch_time_no_checkpoint(mocker, num_frames: int):
-    """Patch time so no timed checkpoints fire (all intervals < threshold).
+def _patch_time_no_checkpoint(mocker, num_stacked_frames: int):
+    """Patch time so no timed checkpoints fire.
 
-    Returns enough monotonic values for: start + num_frames iterations +
-    final.
+    Returns enough monotonic values for: start + num_stacked_frames + final.
     """
     mock_time = mocker.patch("exp.training.loop.time")
-    # All times close together so checkpoint interval never triggers
-    times = [float(i) for i in range(num_frames + 3)]
-    mock_time.monotonic = MagicMock(side_effect=times)
+    times = [float(i) for i in range(num_stacked_frames + 2)]
+    mock_time.monotonic = mocker.Mock(side_effect=times)
     return mock_time
 
 
 class TestTrainingLoop:
-    def test_validation_trigger_every_n_frames(self):
+    def test_validation_trigger_every_n_frames(self, tmp_path: Path):
         with pytest.raises(ValueError, match="trigger_every_n_frames"):
-            _make_loop(trigger_every_n_frames=0)
+            _make_loop(tmp_path, trigger_every_n_frames=0)
         with pytest.raises(ValueError, match="trigger_every_n_frames"):
-            _make_loop(trigger_every_n_frames=-1)
+            _make_loop(tmp_path, trigger_every_n_frames=-1)
 
-    def test_validation_batch_size(self):
+    def test_validation_batch_size(self, tmp_path: Path):
         with pytest.raises(ValueError, match="batch_size"):
-            _make_loop(batch_size=0)
+            _make_loop(tmp_path, batch_size=0)
 
-    def test_validation_num_epochs(self):
+    def test_validation_num_epochs(self, tmp_path: Path):
         with pytest.raises(ValueError, match="num_epochs"):
-            _make_loop(num_epochs=0)
+            _make_loop(tmp_path, num_epochs=0)
 
-    def test_frames_flow_to_buffer(self, mocker):
-        frame_loader = MagicMock()
+    def test_frames_flow_to_buffer(self, mocker, tmp_path: Path):
+        # 4 frames with FrameStacker(num_frames=2): first None + 3 stacked
         frames = [torch.randn(3, 8, 8) for _ in range(4)]
-        frame_loader.__iter__ = MagicMock(return_value=iter(frames))
-
-        stacker = MagicMock()
-        stacked_tensor = torch.randn(3, 2, 8, 8)
-        # Return None for first frame, tensor for the rest
-        stacker.push = MagicMock(
-            side_effect=[None, stacked_tensor, stacked_tensor, stacked_tensor]
-        )
-
-        buffer = MagicMock()
-        buffer.__len__ = MagicMock(return_value=1)
-
-        _patch_time_no_checkpoint(mocker, 4)
-
-        loop = _make_loop(
-            frame_loader=frame_loader,
-            frame_stacker=stacker,
-            buffer=buffer,
-            trigger_every_n_frames=100,  # high so trigger doesn't fire
-        )
-        loop.run({})
-
-        assert buffer.add.call_count == 3
-
-    def test_trigger_fires_at_correct_interval(self, mocker):
-        frame_loader = MagicMock()
-        frames = [torch.randn(3, 8, 8) for _ in range(6)]
-        frame_loader.__iter__ = MagicMock(return_value=iter(frames))
-
-        stacker = MagicMock()
-        stacked = torch.randn(3, 2, 8, 8)
-        stacker.push = MagicMock(return_value=stacked)
-
-        buffer = MagicMock()
-        buffer.__len__ = MagicMock(return_value=10)
-        buffer.get_data = MagicMock(return_value=torch.randn(10, 3, 2, 8, 8))
-
-        training_logic = MagicMock()
-        result_mock = MagicMock()
-        result_mock.loss.item.return_value = 0.5
-        result_mock.metrics = {}
-        training_logic.train_step_from_batch = MagicMock(return_value=result_mock)
-
-        _patch_time_no_checkpoint(mocker, 6)
-
-        loop = _make_loop(
-            frame_loader=frame_loader,
-            frame_stacker=stacker,
-            buffer=buffer,
-            training_logic=training_logic,
-            trigger_every_n_frames=3,
-            batch_size=4,
-            num_epochs=1,
-        )
-        loop.run({})
-
-        # 6 frames, trigger every 3 => 2 triggers
-        assert buffer.get_data.call_count == 2
-
-    def test_checkpoint_saved_at_time_interval(self, mocker):
-        frame_loader = MagicMock()
-        frames = [torch.randn(3, 8, 8) for _ in range(3)]
-        frame_loader.__iter__ = MagicMock(return_value=iter(frames))
-
-        stacker = MagicMock()
-        stacker.push = MagicMock(return_value=torch.randn(3, 2, 8, 8))
-
-        buffer = MagicMock()
-        buffer.__len__ = MagicMock(return_value=1)
-
-        checkpoint_manager = MagicMock()
-
-        mock_time = mocker.patch("exp.training.loop.time")
-        # Sequence of monotonic() calls:
-        # 1. start_time = 0.0
-        # 2. after frame 1: current_time = 100.0 (< 300, no ckpt)
-        # 3. after frame 2: current_time = 400.0 (>= 300, ckpt! last_ckpt=400)
-        # 4. after frame 3: current_time = 500.0 (< 300 since 400, no ckpt)
-        # 5. final checkpoint elapsed
-        mock_time.monotonic = MagicMock(side_effect=[0.0, 100.0, 400.0, 500.0, 600.0])
-
-        loop = _make_loop(
-            frame_loader=frame_loader,
-            frame_stacker=stacker,
-            buffer=buffer,
-            checkpoint_manager=checkpoint_manager,
-            trigger_every_n_frames=100,
-            checkpoint_interval_seconds=300.0,
-        )
-
-        models = {"encoder": MagicMock()}
-        loop.run(models)
-
-        # 1 timed checkpoint + 1 final checkpoint = 2 saves
-        assert checkpoint_manager.save.call_count == 2
-
-    def test_final_checkpoint_always_saved(self, mocker):
-        frame_loader = MagicMock()
-        frames = [torch.randn(3, 8, 8) for _ in range(2)]
-        frame_loader.__iter__ = MagicMock(return_value=iter(frames))
-
-        stacker = MagicMock()
-        stacker.push = MagicMock(return_value=torch.randn(3, 2, 8, 8))
-
-        buffer = MagicMock()
-        buffer.__len__ = MagicMock(return_value=1)
-
-        checkpoint_manager = MagicMock()
-
-        mock_time = mocker.patch("exp.training.loop.time")
-        # No timed checkpoint triggers (all intervals < 300)
-        mock_time.monotonic = MagicMock(side_effect=[0.0, 10.0, 20.0, 30.0])
-
-        loop = _make_loop(
-            frame_loader=frame_loader,
-            frame_stacker=stacker,
-            buffer=buffer,
-            checkpoint_manager=checkpoint_manager,
-            trigger_every_n_frames=100,
-            checkpoint_interval_seconds=300.0,
-        )
-
-        models = {"encoder": MagicMock()}
-        loop.run(models)
-
-        # Only the final checkpoint
-        assert checkpoint_manager.save.call_count == 1
-
-    def test_learn_uses_dataloader_from_buffer(self, mocker):
-        frame_loader = MagicMock()
-        frames = [torch.randn(3, 8, 8) for _ in range(3)]
-        frame_loader.__iter__ = MagicMock(return_value=iter(frames))
-
-        stacker = MagicMock()
-        stacker.push = MagicMock(return_value=torch.randn(3, 2, 8, 8))
-
-        buffer = MagicMock()
-        buffer.__len__ = MagicMock(return_value=8)
-        buffer.get_data = MagicMock(return_value=torch.randn(8, 3, 2, 8, 8))
-
-        training_logic = MagicMock()
-        result_mock = MagicMock()
-        result_mock.loss.item.return_value = 0.5
-        result_mock.metrics = {}
-        training_logic.train_step_from_batch = MagicMock(return_value=result_mock)
+        buffer = FIFOReplayBuffer(max_size=100)
 
         _patch_time_no_checkpoint(mocker, 3)
 
         loop = _make_loop(
-            frame_loader=frame_loader,
-            frame_stacker=stacker,
+            tmp_path,
+            frame_loader=frames,
+            buffer=buffer,
+            trigger_every_n_frames=100,
+        )
+        loop.run({})
+
+        assert len(buffer) == 3
+
+    def test_trigger_fires_at_correct_interval(self, mocker, tmp_path: Path):
+        # 7 frames with FrameStacker(num_frames=2): first None + 6 stacked
+        # trigger_every_n_frames=3 => 2 triggers
+        frames = [torch.randn(3, 8, 8) for _ in range(7)]
+        buffer = FIFOReplayBuffer(max_size=100)
+        training_logic = TrainingLogicImpl()
+
+        _patch_time_no_checkpoint(mocker, 6)
+
+        loop = _make_loop(
+            tmp_path,
+            frame_loader=frames,
             buffer=buffer,
             training_logic=training_logic,
             trigger_every_n_frames=3,
+            batch_size=2,
+            num_epochs=1,
+        )
+        loop.run({})
+
+        # 1st trigger: 3 items, batch_size=2 => 2 batches
+        # 2nd trigger: 6 items, batch_size=2 => 3 batches
+        # total: 5 train steps
+        assert training_logic.call_count == 5
+
+    def test_checkpoint_saved_at_time_interval(self, mocker, tmp_path: Path):
+        # 4 frames with FrameStacker(num_frames=2): first None + 3 stacked
+        frames = [torch.randn(3, 8, 8) for _ in range(4)]
+        buffer = FIFOReplayBuffer(max_size=100)
+        checkpoint_manager = CheckpointManager(log_dir=tmp_path, experiment_name="test")
+
+        mock_time = mocker.patch("exp.training.loop.time")
+        # monotonic calls: start=0.0, frame2=100.0, frame3=400.0(ckpt), frame4=500.0, final=600.0
+        mock_time.monotonic = mocker.Mock(side_effect=[0.0, 100.0, 400.0, 500.0, 600.0])
+
+        loop = _make_loop(
+            tmp_path,
+            frame_loader=frames,
+            buffer=buffer,
+            checkpoint_manager=checkpoint_manager,
+            trigger_every_n_frames=100,
+            checkpoint_interval_seconds=300.0,
+        )
+
+        models = {"encoder": nn.Linear(4, 4)}
+        loop.run(models)
+
+        # 1 timed checkpoint + 1 final checkpoint = 2 saves
+        ckpts = list(checkpoint_manager.checkpoint_dir.glob("*.ckpt"))
+        assert len(ckpts) == 2
+
+    def test_final_checkpoint_always_saved(self, mocker, tmp_path: Path):
+        # 3 frames with FrameStacker(num_frames=2): first None + 2 stacked
+        frames = [torch.randn(3, 8, 8) for _ in range(3)]
+        buffer = FIFOReplayBuffer(max_size=100)
+        checkpoint_manager = CheckpointManager(log_dir=tmp_path, experiment_name="test")
+
+        mock_time = mocker.patch("exp.training.loop.time")
+        # monotonic calls: start=0.0, frame2=10.0, frame3=20.0, final=30.0
+        mock_time.monotonic = mocker.Mock(side_effect=[0.0, 10.0, 20.0, 30.0])
+
+        loop = _make_loop(
+            tmp_path,
+            frame_loader=frames,
+            buffer=buffer,
+            checkpoint_manager=checkpoint_manager,
+            trigger_every_n_frames=100,
+            checkpoint_interval_seconds=300.0,
+        )
+
+        models = {"encoder": nn.Linear(4, 4)}
+        loop.run(models)
+
+        # Only the final checkpoint
+        ckpts = list(checkpoint_manager.checkpoint_dir.glob("*.ckpt"))
+        assert len(ckpts) == 1
+
+    def test_learn_uses_dataloader_from_buffer(self, mocker, tmp_path: Path):
+        # 9 frames with FrameStacker(num_frames=2): first None + 8 stacked
+        # trigger_every_n_frames=8 => 1 trigger with 8 items
+        frames = [torch.randn(3, 8, 8) for _ in range(9)]
+        buffer = FIFOReplayBuffer(max_size=100)
+        training_logic = TrainingLogicImpl()
+
+        _patch_time_no_checkpoint(mocker, 8)
+
+        loop = _make_loop(
+            tmp_path,
+            frame_loader=frames,
+            buffer=buffer,
+            training_logic=training_logic,
+            trigger_every_n_frames=8,
             batch_size=4,
             num_epochs=1,
         )
         loop.run({})
 
-        # get_data is called to create DataLoader
-        buffer.get_data.assert_called()
-        # DataLoader(8 items, batch_size=4) => 2 batches, 1 epoch => 2 calls
-        assert training_logic.train_step_from_batch.call_count == 2
+        # DataLoader(8 items, batch_size=4) => 2 batches
+        assert training_logic.call_count == 2
