@@ -41,3 +41,38 @@ class TrainingLogicImpl(TrainingLogic):
     def train_step_from_batch(self, batch: Tensor) -> TrainStepResult:
         self.call_count += 1
         return TrainStepResult(loss=torch.tensor(0.5), metrics={})
+
+
+def create_test_video(
+    path: Path,
+    n_frames: int,
+    height: int = 240,
+    width: int = 320,
+    fps: float = 30.0,
+    pixel_value: int | None = None,
+) -> None:
+    """テスト用の動画ファイルを生成する。"""
+    from fractions import Fraction
+
+    import av
+    import numpy as np
+
+    container = av.open(str(path), "w")
+    stream = container.add_stream(
+        "rawvideo", rate=Fraction(fps).limit_denominator(1000)
+    )
+    stream.width = width
+    stream.height = height
+    stream.pix_fmt = "rgb24"
+
+    for _ in range(n_frames):
+        if pixel_value is not None:
+            data = np.full((height, width, 3), pixel_value, dtype=np.uint8)
+        else:
+            data = np.random.randint(0, 256, (height, width, 3), dtype=np.uint8)
+        frame = av.VideoFrame.from_ndarray(data, format="rgb24")
+        container.mux(stream.encode(frame))
+
+    for packet in stream.encode():
+        container.mux(packet)
+    container.close()
