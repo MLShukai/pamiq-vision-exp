@@ -1,66 +1,11 @@
 from pathlib import Path
 
-import numpy as np
 import pytest
 import torch
 from torch import Tensor
 
 from exp.data.loader import VideoFrameLoader, _center_crop, _preprocess_frame
-
-
-def _make_mock_container(
-    mocker,
-    n_frames: int = 30,
-    h: int = 240,
-    w: int = 320,
-    fps: float = 30.0,
-):
-    """Create a mock av container."""
-    mock_frames = []
-    for _ in range(n_frames):
-        frame = mocker.MagicMock()
-        frame.to_ndarray.return_value = np.random.randint(
-            0, 256, (h, w, 3), dtype=np.uint8
-        )
-        mock_frames.append(frame)
-
-    mock_stream = mocker.MagicMock()
-    mock_stream.average_rate = fps
-
-    container = mocker.MagicMock()
-    container.streams.video = [mock_stream]
-    container.decode.return_value = iter(mock_frames)
-    container.__enter__ = mocker.MagicMock(return_value=container)
-    container.__exit__ = mocker.MagicMock(return_value=False)
-
-    return container
-
-
-def _make_uniform_container(
-    mocker,
-    n_frames: int,
-    h: int,
-    w: int,
-    fps: float,
-    value: int,
-):
-    """Create a mock av container with uniform pixel values."""
-    mock_frames = []
-    for _ in range(n_frames):
-        frame = mocker.MagicMock()
-        frame.to_ndarray.return_value = np.full((h, w, 3), value, dtype=np.uint8)
-        mock_frames.append(frame)
-
-    mock_stream = mocker.MagicMock()
-    mock_stream.average_rate = fps
-
-    container = mocker.MagicMock()
-    container.streams.video = [mock_stream]
-    container.decode.return_value = iter(mock_frames)
-    container.__enter__ = mocker.MagicMock(return_value=container)
-    container.__exit__ = mocker.MagicMock(return_value=False)
-
-    return container
+from tests.helpers import create_test_video
 
 
 def _write_video_list(tmp_path: Path, paths: list[str | Path]) -> Path:
@@ -158,16 +103,12 @@ class TestVideoFrameLoaderValidation:
 
 
 class TestVideoFrameLoaderSubsampling:
-    def test_30fps_to_10fps_skips_frames(self, mocker, tmp_path):
+    def test_30fps_to_10fps_skips_frames(self, tmp_path):
         n_frames = 30
-        mocker.patch(
-            "exp.data.loader.av.open",
-            side_effect=lambda *a, **kw: _make_mock_container(
-                mocker, n_frames=n_frames, fps=30.0
-            ),
-        )
+        video = tmp_path / "video.avi"
+        create_test_video(video, n_frames=n_frames, fps=30.0)
 
-        list_file = _write_video_list(tmp_path, ["video.mp4"])
+        list_file = _write_video_list(tmp_path, [video])
         loader = VideoFrameLoader(
             video_list_path=list_file,
             target_fps=10.0,
@@ -177,16 +118,12 @@ class TestVideoFrameLoaderSubsampling:
         # skip = round(30/10) = 3, so 30/3 = 10 frames
         assert len(frames) == 10
 
-    def test_same_fps_no_skipping(self, mocker, tmp_path):
+    def test_same_fps_no_skipping(self, tmp_path):
         n_frames = 15
-        mocker.patch(
-            "exp.data.loader.av.open",
-            side_effect=lambda *a, **kw: _make_mock_container(
-                mocker, n_frames=n_frames, fps=15.0
-            ),
-        )
+        video = tmp_path / "video.avi"
+        create_test_video(video, n_frames=n_frames, fps=15.0)
 
-        list_file = _write_video_list(tmp_path, ["video.mp4"])
+        list_file = _write_video_list(tmp_path, [video])
         loader = VideoFrameLoader(
             video_list_path=list_file,
             target_fps=15.0,
@@ -197,20 +134,18 @@ class TestVideoFrameLoaderSubsampling:
 
 
 class TestVideoFrameLoaderFadeTransition:
-    def test_fade_frame_count(self, mocker, tmp_path):
+    def test_fade_frame_count(self, tmp_path):
         n_frames = 10
-        mocker.patch(
-            "exp.data.loader.av.open",
-            side_effect=lambda *a, **kw: _make_mock_container(
-                mocker, n_frames=n_frames, fps=10.0
-            ),
-        )
+        a = tmp_path / "a.avi"
+        b = tmp_path / "b.avi"
+        create_test_video(a, n_frames=n_frames, fps=10.0)
+        create_test_video(b, n_frames=n_frames, fps=10.0)
 
         fade_duration = 1.0
         target_fps = 10.0
         fade_frames = int(fade_duration * target_fps)
 
-        list_file = _write_video_list(tmp_path, ["a.mp4", "b.mp4"])
+        list_file = _write_video_list(tmp_path, [a, b])
         loader = VideoFrameLoader(
             video_list_path=list_file,
             target_fps=target_fps,
@@ -221,16 +156,14 @@ class TestVideoFrameLoaderFadeTransition:
         expected = n_frames * 2 + fade_frames * 2
         assert len(frames) == expected
 
-    def test_no_fade_with_zero_duration(self, mocker, tmp_path):
+    def test_no_fade_with_zero_duration(self, tmp_path):
         n_frames = 10
-        mocker.patch(
-            "exp.data.loader.av.open",
-            side_effect=lambda *a, **kw: _make_mock_container(
-                mocker, n_frames=n_frames, fps=10.0
-            ),
-        )
+        a = tmp_path / "a.avi"
+        b = tmp_path / "b.avi"
+        create_test_video(a, n_frames=n_frames, fps=10.0)
+        create_test_video(b, n_frames=n_frames, fps=10.0)
 
-        list_file = _write_video_list(tmp_path, ["a.mp4", "b.mp4"])
+        list_file = _write_video_list(tmp_path, [a, b])
         loader = VideoFrameLoader(
             video_list_path=list_file,
             target_fps=10.0,
@@ -239,16 +172,18 @@ class TestVideoFrameLoaderFadeTransition:
         frames = list(loader)
         assert len(frames) == n_frames * 2
 
-    def test_fade_out_interpolation(self, mocker, tmp_path):
+    def test_fade_out_interpolation(self, tmp_path):
         # Use uniform frames so we can verify interpolation values
-        mocker.patch(
-            "exp.data.loader.av.open",
-            side_effect=lambda *a, **kw: _make_uniform_container(
-                mocker, 5, 100, 100, 5.0, 255
-            ),
+        a = tmp_path / "a.avi"
+        b = tmp_path / "b.avi"
+        create_test_video(
+            a, n_frames=5, height=100, width=100, fps=5.0, pixel_value=255
+        )
+        create_test_video(
+            b, n_frames=5, height=100, width=100, fps=5.0, pixel_value=255
         )
 
-        list_file = _write_video_list(tmp_path, ["a.mp4", "b.mp4"])
+        list_file = _write_video_list(tmp_path, [a, b])
         loader = VideoFrameLoader(
             video_list_path=list_file,
             target_fps=5.0,
@@ -275,15 +210,11 @@ class TestVideoFrameLoaderFadeTransition:
 
 
 class TestVideoFrameLoaderIterator:
-    def test_output_shape(self, mocker, tmp_path):
-        mocker.patch(
-            "exp.data.loader.av.open",
-            side_effect=lambda *a, **kw: _make_mock_container(
-                mocker, n_frames=10, h=240, w=320, fps=10.0
-            ),
-        )
+    def test_output_shape(self, tmp_path):
+        video = tmp_path / "v.avi"
+        create_test_video(video, n_frames=10, height=240, width=320, fps=10.0)
 
-        list_file = _write_video_list(tmp_path, ["v.mp4"])
+        list_file = _write_video_list(tmp_path, [video])
         loader = VideoFrameLoader(
             video_list_path=list_file,
             target_fps=10.0,
@@ -293,15 +224,11 @@ class TestVideoFrameLoaderIterator:
         frames = list(loader)
         assert all(f.shape == (3, 112, 112) for f in frames)
 
-    def test_single_video_total_frames(self, mocker, tmp_path):
-        mocker.patch(
-            "exp.data.loader.av.open",
-            side_effect=lambda *a, **kw: _make_mock_container(
-                mocker, n_frames=60, fps=30.0
-            ),
-        )
+    def test_single_video_total_frames(self, tmp_path):
+        video = tmp_path / "v.avi"
+        create_test_video(video, n_frames=60, fps=30.0)
 
-        list_file = _write_video_list(tmp_path, ["v.mp4"])
+        list_file = _write_video_list(tmp_path, [video])
         loader = VideoFrameLoader(
             video_list_path=list_file,
             target_fps=10.0,
